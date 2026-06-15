@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart PDF Summarizer — Upload</title>
+<meta name="description" content="Upload a lecture PDF and get AI-generated study materials."/>
+<link rel="stylesheet" href="css/style.css"/>
+<script type="importmap">
+{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+</script>
+</head>
+<body>
+<div class="control-bar">
+  <button class="toggle-pill font-size-btn" id="font-size-btn" aria-label="Adjust font size" title="Font size"></button>
+  <button class="toggle-pill" id="theme-toggle" aria-label="Toggle theme">
+    <svg id="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    <svg id="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+  </button>
+  <button class="toggle-pill" id="lang-toggle"></button>
+</div>
+
+<div class="wrap">
+  <div class="top-bar">
+    <a href="library.html" class="btn btn-ghost" style="padding:8px 14px;font-size:.82rem">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <span data-i18n="library">Library</span>
+    </a>
+    <div class="user-info">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn btn-danger" style="padding:6px 14px;font-size:.78rem" id="logout-btn" data-i18n="logOut">Log out</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="logo" style="font-size:clamp(1.6rem,3.5vw,2.2rem)">Upload <span class="logo-accent">Lecture PDF</span></div>
+    <p class="subtitle" data-i18n="uploadTagline">Drop a PDF and let AI turn it into study notes.</p>
+  </header>
+
+  <div class="card" id="upload-card">
+    <span class="provider-label" data-i18n="aiProvider">AI Provider</span>
+    <div class="provider-toggle">
+      <button class="prov-btn active" id="btn-claude">
+        <span class="prov-name">Claude</span>
+        <span class="prov-sub">via custom proxy</span>
+      </button>
+      <button class="prov-btn" id="btn-gemini">
+        <span class="prov-name">Gemini</span>
+        <span class="prov-sub">gemini-1.5-flash</span>
+      </button>
+    </div>
+
+    <div id="drop-zone" tabindex="0" role="button" aria-label="Upload PDF file">
+      <div class="drop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
+      <div class="drop-title" data-i18n="dropTitle">Drop your lecture PDF here</div>
+      <div class="drop-sub" data-i18n="dropSub">or click to browse — max 25 MB</div>
+      <input type="file" id="file-input" accept=".pdf,application/pdf"/>
+    </div>
+
+    <div id="file-chip">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span class="fname" id="chip-name"></span>
+      <span class="fsize" id="chip-size"></span>
+      <button id="rm-file" title="Remove file" aria-label="Remove file">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="btn-row end" style="margin-top:20px">
+      <button class="btn btn-accent" id="submit-btn" disabled data-i18n="analyzePDF">Analyze PDF</button>
+    </div>
+  </div>
+
+  <div class="card" id="prog-section">
+    <div class="prog-head"><span class="prog-name" id="prog-name"></span><span class="prog-pct" id="prog-pct">0%</span></div>
+    <div class="bar-track"><div class="bar-fill" id="bar"></div></div>
+    <div class="prog-msg"><div class="spinner"></div><span id="prog-msg"></span></div>
+  </div>
+
+  <div id="err-box"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
+
+  <div id="results">
+    <div class="res-head">
+      <div class="res-title"><div class="dot-ok"></div><span data-i18n="analysisComplete">Analysis Complete</span> <span class="provider-badge" id="result-badge">Claude</span></div>
+      <div style="display:flex;gap:8px">
+        <a class="btn btn-ghost" style="padding:8px 14px;font-size:.82rem" id="view-link" href="#"><span data-i18n="viewFullPage">View full page →</span></a>
+        <button class="btn btn-ghost" onclick="location.reload()" style="padding:8px 14px;font-size:.82rem" data-i18n="newPDF">New PDF</button>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="tabs">
+      <button class="tab on" data-panel="summary"><span data-i18n="summary">Summary</span></button>
+      <button class="tab" data-panel="keypoints"><span data-i18n="keyPoints">Key Points</span></button>
+      <button class="tab" data-panel="flashcards"><span data-i18n="flashcards">Flashcards</span></button>
+    </div>
+    <div class="panel on" id="p-summary"><div class="md" id="c-summary"></div></div>
+    <div class="panel" id="p-keypoints"><div class="md" id="c-keypoints"></div></div>
+    <div class="panel" id="p-flashcards">
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;font-style:italic" data-i18n="tapToFlip">Tap a card to reveal the answer</p>
+      <div class="fc-grid" id="c-flashcards"></div>
+    </div>
+  </div>
+  <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
+</div>
+
+<script type="module">
+import { createClient } from '@supabase/supabase-js';
+import { t, getLang, setLang } from './js/i18n.js';
+import { initFontSize, cycleFontSize } from './js/font-size.js';
+
+const sb = createClient(
+  'https://efkraurkqiavqdilkjpt.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVma3JhdXJrcWlhdnFkaWxranB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MzUzMjgsImV4cCI6MjA5NzAxMTMyOH0.ElPgpRN-ubpg93nMFSUmHUAukyw5bWL2GvtLv4Wddyg'
+);
+const { data: { session } } = await sb.auth.getSession();
+if (!session) window.location.href = 'index.html';
+const { data: { user } } = await sb.auth.getUser();
+if (user) document.getElementById('user-email').textContent = user.email;
+document.getElementById('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+
+// Font size
+initFontSize();
+document.getElementById("font-size-btn").addEventListener("click", cycleFontSize);
+
+// Theme
+const body = document.body;
+const savedTheme = localStorage.getItem('theme') || 'light';
+body.setAttribute('data-theme', savedTheme);
+updateThemeUI(savedTheme);
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const n = (body.getAttribute('data-theme')||'light') === 'light' ? 'dark' : 'light';
+  body.setAttribute('data-theme', n); localStorage.setItem('theme', n); updateThemeUI(n);
+});
+function updateThemeUI(th) { document.getElementById('theme-icon-dark').style.display = th === 'dark' ? '' : 'none'; document.getElementById('theme-icon-light').style.display = th === 'light' ? '' : 'none'; }
+
+// Language
+const langBtn = document.getElementById('lang-toggle');
+updateLangUI();
+langBtn.addEventListener('click', () => { setLang(getLang()==='en'?'mm':'en'); updateLangUI(); renderTexts(); });
+function updateLangUI() { langBtn.textContent = getLang()==='en'?'မြန်မာ':'EN'; document.documentElement.lang = getLang()==='mm'?'my':'en'; }
+function renderTexts() {
+  document.querySelectorAll('[data-i18n]').forEach(el => { if (el.tagName!=='INPUT'||el.type!=='submit') el.textContent = t(el.getAttribute('data-i18n')); });
+  document.getElementById('submit-btn').textContent = t('analyzePDF');
+  document.title = t('appName') + ' — ' + t('uploadTitle');
+}
+renderTexts();
+
+// State
+const $ = id => document.getElementById(id);
+let selFile = null, pollTimer = null, provider = 'claude', currentDocId = null;
+
+document.getElementById('btn-claude').addEventListener('click', () => { provider='claude'; updateProvUI(); });
+document.getElementById('btn-gemini').addEventListener('click', () => { provider='gemini'; updateProvUI(); });
+function updateProvUI() {
+  $('btn-claude').className = 'prov-btn' + (provider==='claude'?' active':'');
+  $('btn-gemini').className = 'prov-btn' + (provider==='gemini'?' active':'');
+}
+function checkBtn() { $('submit-btn').disabled = !selFile; }
+
+const fileInput = $('file-input');
+const dz = $('drop-zone');
+dz.addEventListener('click', () => fileInput.click());
+dz.addEventListener('keydown', e => (e.key==='Enter'||e.key===' ') && fileInput.click());
+fileInput.addEventListener('change', () => fileInput.files[0] && setFile(fileInput.files[0]));
+$('rm-file').addEventListener('click', e => { e.stopPropagation(); selFile=null; fileInput.value=''; $('file-chip').classList.remove('show'); checkBtn(); });
+$('submit-btn').addEventListener('click', doUpload);
+
+function setFile(f) {
+  if (!f || !f.name.toLowerCase().endsWith('.pdf')) return alert(t('pleaseChoosePDF'));
+  if (f.size > 25*1024*1024) return alert(t('fileTooLarge'));
+  selFile = f; $('chip-name').textContent = f.name;
+  $('chip-size').textContent = f.size < 1024 ? f.size+' B' : f.size < 1048576 ? (f.size/1024).toFixed(1)+' KB' : (f.size/1048576).toFixed(2)+' MB';
+  $('file-chip').classList.add('show'); checkBtn();
+}
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); e.dataTransfer.files[0] && setFile(e.dataTransfer.files[0]); });
+
+function showErr(msg) { $('err-box').classList.add('show'); $('err-text').textContent = msg; }
+function hideErr() { $('err-box').classList.remove('show'); }
+
+async function doUpload() {
+  if (!selFile) return;
+  const docId = crypto.randomUUID(); currentDocId = docId;
+  const uid = user.id, pdfPath = `${uid}/${docId}.pdf`;
+  hideErr(); $('upload-card').style.display='none'; $('results').classList.remove('show');
+  $('prog-section').classList.add('show'); $('prog-name').textContent = selFile.name;
+  updateProgress(0, t('uploadingPDF'));
+  try {
+    const { error: upErr } = await sb.storage.from('pdfs').upload(pdfPath, selFile, { upsert: true });
+    if (upErr) throw new Error(upErr.message);
+    updateProgress(15, t('startingAI'));
+    const { error: fnErr } = await sb.functions.invoke('process-pdf', { body: { doc_id: docId, pdf_path: `pdfs/${pdfPath}`, provider } });
+    if (fnErr) throw new Error(fnErr.message);
+    startPoll(docId, uid);
+  } catch (err) { showErr(err.message); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
+}
+function updateProgress(pct, msg) { $('prog-pct').textContent = pct+'%'; $('bar').style.width = pct+'%'; $('prog-msg').textContent = msg; }
+
+function startPoll(docId, uid) {
+  pollTimer = setInterval(async () => {
+    try {
+      const { data: doc } = await sb.from('documents').select('*').eq('id', docId).single();
+      if (!doc) return;
+      updateProgress(doc.progress, doc.progress_msg);
+      if (doc.status === 'done') { clearInterval(pollTimer); showResults(doc, uid); }
+      if (doc.status === 'error') { clearInterval(pollTimer); showErr(doc.error_msg || t('somethingWentWrong')); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
+    } catch {}
+  }, 1500);
+}
+
+async function showResults(doc, uid) {
+  $('prog-section').classList.remove('show'); $('upload-card').style.display='';
+  $('result-badge').textContent = doc.provider==='gemini'?'Gemini':'Claude';
+  let st = '';
+  if (doc.page_count) st += `<div class="stat">${t('pages')}: <strong>${doc.page_count}</strong></div>`;
+  if (doc.word_count) st += `<div class="stat">${t('words')}: <strong>${doc.word_count.toLocaleString()}</strong></div>`;
+  if (doc.flashcard_count) st += `<div class="stat">${t('flashcards')}: <strong>${doc.flashcard_count}</strong></div>`;
+  $('stats').innerHTML = st;
+  $('view-link').href = `view.html?id=${currentDocId}`;
+
+  const prefix = `${uid}/${currentDocId}/`;
+  try {
+    const [sRes,kRes,fRes] = await Promise.all([
+      sb.storage.from('outputs').download(prefix+'summary.md'),
+      sb.storage.from('outputs').download(prefix+'key_points.md'),
+      sb.storage.from('outputs').download(prefix+'flashcards.md'),
+    ]);
+    if (sRes.data) { const tx = await sRes.data.text(); $('c-summary').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
+    if (kRes.data) { const tx = await kRes.data.text(); $('c-keypoints').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
+    if (fRes.data) {
+      const tx = await fRes.data.text(); const cards = []; let cur = null;
+      for (const line of tx.split('\n')) {
+        const qm=line.match(/^\*\*Q:\*\*\s+(.+)/), am=line.match(/^\*\*A:\*\*\s+(.+)/);
+        if (qm) { cur={q:qm[1],a:''}; } else if (am&&cur) { cur.a=am[1]; cards.push(cur); cur=null; }
+      }
+      const hint=t('clickToFlip'), lbl=t('card');
+      $('c-flashcards').innerHTML = cards.map((fc,i)=>`<div class="fc" onclick="this.classList.toggle('flip')"><div class="lbl">${lbl} ${i+1}</div><div class="q">${esc(fc.q)}</div><div class="a">${esc(fc.a)}</div><div class="fc-hint">${hint}</div></div>`).join('');
+    }
+  } catch {}
+  $('results').classList.add('show'); $('results').scrollIntoView({ behavior:'smooth',block:'start' });
+}
+
+function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function md2html(md) {
+  if (!md) return '';
+  let s = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^---$/gm,'<hr/>').replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/^[-•] (.+)$/gm,'<li>$1</li>');
+  s = s.replace(/(<li>[^]*?<\/li>\n?)+/g, m => '<ul>'+m+'</ul>');
+  return s.split(/\n{2,}/).map(b => { b=b.trim(); if(!b) return ''; if(/^<(h[23]|ul|hr|blockquote)/.test(b)) return b; return '<p>'+b.replace(/\n/g,'<br/>')+'</p>'; }).join('');
+}
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+    tab.classList.add('on'); document.getElementById('p-'+tab.dataset.panel).classList.add('on');
+  });
+});
+</script>
+</body>
+</html>
