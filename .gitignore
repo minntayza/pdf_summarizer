@@ -1,0 +1,11 @@
+# OS files
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Project
+output/
+input/
