@@ -154,17 +154,32 @@ def process_pdf(text: str, model: str, provider: str, pdf_name: str) -> LectureO
     print(f"   ⚠ Large PDF — splitting into {len(chunks)} chunks...", flush=True)
 
     merged = LectureOutput(summary="", key_points="", flashcards=[])
+    skipped_chunks = []
 
     for i, chunk in enumerate(chunks, start=1):
         print(f"   → Processing chunk {i}/{len(chunks)}...", flush=True)
-        try:
-            data = call_llm(chunk, model, provider)
-            result = LectureOutput(**data)
+        result = None
+        for attempt in range(2):  # retry once on failure
+            try:
+                data = call_llm(chunk, model, provider)
+                result = LectureOutput(**data)
+                break
+            except Exception as e:
+                if attempt == 1:
+                    print(f"   ⚠ Chunk {i} failed after retry: {e}. Skipping.", file=sys.stderr, flush=True)
+                    skipped_chunks.append(i)
+                else:
+                    print(f"   ⚠ Chunk {i} failed, retrying...", flush=True)
+
+        if result is not None:
             merged.summary += f"\n\n## Part {i}\n\n{result.summary}"
             merged.key_points += f"\n\n### Part {i}\n\n{result.key_points}"
             merged.flashcards.extend(result.flashcards)
-        except Exception as e:
-            print(f"   ⚠ Chunk {i} failed: {e}. Skipping.", file=sys.stderr, flush=True)
+
+    if skipped_chunks:
+        warning = f"\n\n---\n> ⚠️ Warning: Chunk(s) {', '.join(map(str, skipped_chunks))} could not be processed. Some content may be missing.\n"
+        merged.summary += warning
+        merged.key_points += warning
 
     return merged
 

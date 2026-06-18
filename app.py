@@ -28,6 +28,7 @@ from prompts import SYSTEM_PROMPT, build_user_prompt, LectureOutput
 
 # ── Flask setup ────────────────────────────────────────────────────────────────
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB max upload size
 CORS(app)
 
 UPLOAD_FOLDER = Path("uploads")
@@ -258,11 +259,12 @@ def upload():
             "page_count": None, "word_count": None,
         }
 
-    threading.Thread(
+        thread = threading.Thread(
         target=run_job,
         args=(job_id, str(save_path), file.filename, provider, api_key),
-        daemon=True,
-    ).start()
+        daemon=False,  # Non-daemon: survives graceful shutdown until work completes
+    )
+    thread.start()
 
     return jsonify({"job_id": job_id})
 

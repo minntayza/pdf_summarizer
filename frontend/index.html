@@ -50,57 +50,29 @@
 </div>
 
 <script type="module">
-import { createClient } from '@supabase/supabase-js';
+import { sb } from './js/supabase-client.js';
 import { t, getLang, setLang } from './js/i18n.js';
-import { initFontSize, cycleFontSize } from './js/font-size.js';
+import { initUI, renderI18n } from './js/ui-init.js';
 
-const sb = createClient(
-  'https://efkraurkqiavqdilkjpt.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVma3JhdXJrcWlhdnFkaWxranB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MzUzMjgsImV4cCI6MjA5NzAxMTMyOH0.ElPgpRN-ubpg93nMFSUmHUAukyw5bWL2GvtLv4Wddyg'
-);
-
-const { data: { session } } = await sb.auth.getSession();
+let session;
+try {
+  const sessResp = await sb.auth.getSession();
+  session = sessResp.data?.session;
+} catch {
+  session = null;
+}
 if (session) window.location.href = 'upload.html';
 
-// Font size
-initFontSize();
-document.getElementById('font-size-btn').addEventListener('click', cycleFontSize);
+// Theme, font size, language — shared init
+initUI(() => { renderI18n(); updatePlaceholders(); document.getElementById('submit-btn').textContent = t('logIn'); document.title = t('appName') + ' — ' + t('loginTitle'); });
 
-// Theme (default: light for classical feel)
-const body = document.body;
-const savedTheme = localStorage.getItem('theme') || 'light';
-body.setAttribute('data-theme', savedTheme);
-updateThemeUI(savedTheme);
-
-document.getElementById('theme-toggle').addEventListener('click', () => {
-  const cur = body.getAttribute('data-theme') || 'light';
-  const next = cur === 'light' ? 'dark' : 'light';
-  body.setAttribute('data-theme', next);
-  localStorage.setItem('theme', next);
-  updateThemeUI(next);
-});
-
-function updateThemeUI(theme) {
-  document.getElementById('theme-icon-dark').style.display = theme === 'dark' ? '' : 'none';
-  document.getElementById('theme-icon-light').style.display = theme === 'light' ? '' : 'none';
-}
-
-// Language
-const langBtn = document.getElementById('lang-toggle');
-updateLangUI();
-langBtn.addEventListener('click', () => { setLang(getLang() === 'en' ? 'mm' : 'en'); updateLangUI(); renderTexts(); updatePlaceholders(); });
-function updateLangUI() { langBtn.textContent = getLang() === 'en' ? 'မြန်မာ' : 'EN'; document.documentElement.lang = getLang() === 'mm' ? 'my' : 'en'; }
-
-function renderTexts() {
-  document.querySelectorAll('[data-i18n]').forEach(el => { if (el.tagName !== 'INPUT' || el.type !== 'submit') el.textContent = t(el.getAttribute('data-i18n')); });
-  document.getElementById('submit-btn').textContent = t('logIn');
-  document.title = t('appName') + ' — ' + t('loginTitle');
-}
 function updatePlaceholders() {
   document.getElementById('email').placeholder = t('emailPlaceholder');
   document.getElementById('password').placeholder = t('passwordPlaceholder');
 }
-renderTexts(); updatePlaceholders();
+renderI18n(); updatePlaceholders();
+document.getElementById('submit-btn').textContent = t('logIn');
+document.title = t('appName') + ' — ' + t('loginTitle');
 
 // Login
 const form = document.getElementById('login-form');

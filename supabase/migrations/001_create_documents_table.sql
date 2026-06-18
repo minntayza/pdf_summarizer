@@ -28,7 +28,8 @@ CREATE POLICY "Users can insert own documents"
 
 CREATE POLICY "Users can update own documents"
   ON documents FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX idx_documents_user_created ON documents(user_id, created_at DESC);
 
@@ -69,10 +70,20 @@ CREATE POLICY "Users can read their own outputs"
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
 
-CREATE POLICY "Edge function can write outputs"
+CREATE POLICY "Users can insert into their own outputs"
   ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'outputs');
+  WITH CHECK (
+    bucket_id = 'outputs'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
 
-CREATE POLICY "Edge function can update outputs"
+CREATE POLICY "Users can update their own outputs"
   ON storage.objects FOR UPDATE
-  WITH CHECK (bucket_id = 'outputs');
+  USING (
+    bucket_id = 'outputs'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  )
+  WITH CHECK (
+    bucket_id = 'outputs'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );

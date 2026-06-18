@@ -60,56 +60,34 @@
 </div>
 
 <script type="module">
-import { createClient } from '@supabase/supabase-js';
+import { sb } from './js/supabase-client.js';
 import { t, getLang, setLang } from './js/i18n.js';
-import { initFontSize, cycleFontSize } from './js/font-size.js';
+import { initUI, renderI18n } from './js/ui-init.js';
+import { esc, md2html, fmtDate, parseFlashcards } from './js/app.js';
 
-const sb = createClient(
-  'https://efkraurkqiavqdilkjpt.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVma3JhdXJrcWlhdnFkaWxranB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MzUzMjgsImV4cCI6MjA5NzAxMTMyOH0.ElPgpRN-ubpg93nMFSUmHUAukyw5bWL2GvtLv4Wddyg'
-);
-
-const { data: { session } } = await sb.auth.getSession();
+let session, user;
+try {
+  const sessResp = await sb.auth.getSession();
+  session = sessResp.data?.session;
+  const userResp = await sb.auth.getUser();
+  user = userResp.data?.user;
+} catch {
+  session = null;
+  user = null;
+}
 if (!session) window.location.href = 'index.html';
-const { data: { user } } = await sb.auth.getUser();
 if (user) document.getElementById('user-email').textContent = user.email;
 document.getElementById('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
 
 const docId = new URLSearchParams(window.location.search).get('id');
 if (!docId) { window.location.href = 'library.html'; }
 
-// Font size
-initFontSize();
-document.getElementById("font-size-btn").addEventListener("click", cycleFontSize);
-
-// Theme
-const body = document.body;
-const savedTheme = localStorage.getItem('theme') || 'light';
-body.setAttribute('data-theme', savedTheme);
-updateThemeUI(savedTheme);
-document.getElementById('theme-toggle').addEventListener('click', () => {
-  const n = (body.getAttribute('data-theme')||'light') === 'light' ? 'dark' : 'light';
-  body.setAttribute('data-theme', n); localStorage.setItem('theme', n); updateThemeUI(n);
-});
-function updateThemeUI(th) { document.getElementById('theme-icon-dark').style.display = th === 'dark' ? '' : 'none'; document.getElementById('theme-icon-light').style.display = th === 'light' ? '' : 'none'; }
-
-// Language
-const langBtn = document.getElementById('lang-toggle');
-updateLangUI();
-langBtn.addEventListener('click', () => { setLang(getLang()==='en'?'mm':'en'); updateLangUI(); renderTexts(); });
-function updateLangUI() { langBtn.textContent = getLang()==='en'?'မြန်မာ':'EN'; document.documentElement.lang = getLang()==='mm'?'my':'en'; }
-function renderTexts() { document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); }); document.title = t('appName'); }
-renderTexts();
+// Theme, font size, language — shared init
+initUI(() => { renderI18n(); document.title = t('appName'); });
+renderI18n();
+document.title = t('appName');
 
 function showErr(msg) { document.getElementById('err-box').classList.add('show'); document.getElementById('err-text').textContent = msg; }
-function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function fmtDate(iso) { if (!iso) return ''; const d = new Date(iso); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
-function md2html(md) {
-  if (!md) return '';
-  let s = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/^### (.+)$/gm,'<h3>$1</h3>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^---$/gm,'<hr/>').replace(/^> (.+)$/gm,'<blockquote>$1</blockquote>').replace(/^[-•] (.+)$/gm,'<li>$1</li>');
-  s = s.replace(/(<li>[^]*?<\/li>\n?)+/g, m => '<ul>'+m+'</ul>');
-  return s.split(/\n{2,}/).map(b => { b=b.trim(); if(!b) return ''; if(/^<(h[23]|ul|hr|blockquote)/.test(b)) return b; return '<p>'+b.replace(/\n/g,'<br/>')+'</p>'; }).join('');
-}
 
 const loadingEl = document.getElementById('loading-state'), resultsEl = document.getElementById('results');
 const { data: doc, error } = await sb.from('documents').select('*').eq('id', docId).single();
@@ -131,22 +109,28 @@ else {
   document.getElementById('stats').innerHTML = st;
 
   const prefix = `${doc.user_id}/${docId}/`;
-  const [sRes,kRes,fRes] = await Promise.all([
-    sb.storage.from('outputs').download(prefix+'summary.md'),
-    sb.storage.from('outputs').download(prefix+'key_points.md'),
-    sb.storage.from('outputs').download(prefix+'flashcards.md'),
-  ]);
-  if (sRes.data) { const tx = await sRes.data.text(); document.getElementById('c-summary').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
-  if (kRes.data) { const tx = await kRes.data.text(); document.getElementById('c-keypoints').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
-  if (fRes.data) {
-    const tx = await fRes.data.text(); const cards = []; let cur = null;
-    for (const line of tx.split('\n')) {
-      const qm=line.match(/^\*\*Q:\*\*\s+(.+)/), am=line.match(/^\*\*A:\*\*\s+(.+)/);
-      if (qm) { cur={q:qm[1],a:''}; } else if (am&&cur) { cur.a=am[1]; cards.push(cur); cur=null; }
-    }
-    const hint=t('clickToFlip'), lbl=t('card');
-    document.getElementById('c-flashcards').innerHTML = cards.map((fc,i)=>`<div class="fc" onclick="this.classList.toggle('flip')"><div class="lbl">${lbl} ${i+1}</div><div class="q">${esc(fc.q)}</div><div class="a">${esc(fc.a)}</div><div class="fc-hint">${hint}</div></div>`).join('');
+  let downloadFailed = false;
+  try {
+    const [sRes,kRes,fRes] = await Promise.all([
+      sb.storage.from('outputs').download(prefix+'summary.md'),
+      sb.storage.from('outputs').download(prefix+'key_points.md'),
+      sb.storage.from('outputs').download(prefix+'flashcards.md'),
+    ]);
+    if (sRes.data) { const tx = await sRes.data.text(); document.getElementById('c-summary').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
+    else if (sRes.error) { console.error('Failed to load summary:', sRes.error); downloadFailed = true; }
+    if (kRes.data) { const tx = await kRes.data.text(); document.getElementById('c-keypoints').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
+    else if (kRes.error) { console.error('Failed to load key points:', kRes.error); downloadFailed = true; }
+    if (fRes.data) {
+      const tx = await fRes.data.text();
+      const cards = parseFlashcards(tx);
+      const hint=t('clickToFlip'), lbl=t('card');
+      document.getElementById('c-flashcards').innerHTML = cards.map((fc,i)=>`<div class="fc" onclick="this.classList.toggle('flip')"><div class="lbl">${lbl} ${i+1}</div><div class="q">${esc(fc.q)}</div><div class="a">${esc(fc.a)}</div><div class="fc-hint">${hint}</div></div>`).join('');
+    } else if (fRes.error) { console.error('Failed to load flashcards:', fRes.error); downloadFailed = true; }
+  } catch {
+    downloadFailed = true;
+    console.error('Failed to download output files');
   }
+  if (downloadFailed) { showErr(t('networkError')); }
 }
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
