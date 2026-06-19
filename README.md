@@ -2,6 +2,16 @@
 
 Turn lecture PDFs into **summary notes**, **key exam points**, and **Q&A flashcards** — powered by AI, with user accounts and cloud storage.
 
+## Screenshots
+
+| Login | Signup | Upload |
+|:-----:|:------:|:------:|
+| ![Login](images/login.png) | ![Signup](images/signup.png) | ![Upload](images/upload.png) |
+
+| Library | View |
+|:-------:|:----:|
+| ![Library](images/library.png) | ![View](images/view.png) |
+
 ## Quick Start
 
 ```bash

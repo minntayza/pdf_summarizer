@@ -6,6 +6,11 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Node
+node_modules/
+package.json
+package-lock.json
+
 # Project
 output/
 input/
