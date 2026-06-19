@@ -7,13 +7,24 @@
 
 ---
 
-## 1. What I Built
+## 1. Why I Built This
 
-Smart PDF Lecture Summarizer is a **full-stack web application** that turns academic lecture PDFs into AI-generated study materials. Students log in with email/password, upload lecture PDFs, and receive **summary notes**, **key exam points**, and **interactive flashcards** — all stored in the cloud and accessible from any device.
+I'm a student in **Vibe Code Tours**. My lecturer **U Ko Ko Ye** shares lecture PDFs every week — each one is 30–60 pages of dense technical content. When exams approach, I end up with a pile of PDFs and very little time to review them all.
 
-**Real user:** Myself (@minntayza) — a Burmese university student who receives many lecture PDFs before exams and needs a fast way to extract what matters.
+I needed a way to:
+- **Summarize** each lecture quickly without reading 60 pages
+- **Extract key points** — what's actually important for the exam
+- **Create flashcards** — so I can actively test myself instead of just re-reading
 
-### Phase 1 vs Phase 2
+So I built **Smart PDF Lecture Summarizer** — a web app where I upload U Ko Ko Ye's PDFs and AI generates summary notes, key exam points, and interactive flashcards. Everything is saved in the cloud so I can revisit any lecture anytime.
+
+---
+
+## 2. What I Built
+
+Smart PDF Lecture Summarizer is a **full-stack web application** built entirely with Claude Code. I log in with email/password, upload U Ko Ko Ye's lecture PDFs, and within minutes receive structured study materials — all stored in Supabase cloud.
+
+### From CLI to Web App
 
 | Phase 1 | Phase 2 |
 |---------|---------|
@@ -21,61 +32,57 @@ Smart PDF Lecture Summarizer is a **full-stack web application** that turns acad
 | Local file storage | Supabase cloud storage |
 | No user accounts | Email + password accounts |
 | Python Flask | Supabase Edge Function (Deno/TS) |
-| Single-user | Multi-user with RLS |
+| Single-use | Persistent library with history |
 
 ---
 
-## 2. How Claude Code Helped
+## 3. How Claude Code Helped
 
-This project was built **entirely with Claude Code**. Here's how Claude Code contributed at each stage:
+This project was built **entirely with Claude Code** as part of Vibe Code Tours. Here's how Claude Code contributed:
 
 ### Architecture & Design
-- Started with a vision in `PROPOSAL.md` — Claude Code helped expand this into a full technical design (`design.md`)
-- Claude Code designed the architecture: frontend served locally, Supabase cloud for auth/storage/database/edge functions
-- Recommended the polling-based progress pattern instead of WebSockets (simpler, zero infra)
+- I started with a vision in `PROPOSAL.md` — Claude Code helped turn it into a full technical design (`design.md`)
+- Claude Code designed the architecture: HTML/CSS/JS frontend served locally, Supabase cloud handling auth, storage, database, and edge functions
+- Recommended the polling-based progress pattern instead of WebSockets (simpler, zero extra infrastructure)
 
 ### Frontend Development
-- Built all 5 HTML pages: login, signup, upload, library, view
-- Wrote CSS with a purple/green dark theme, mobile responsive
-- Implemented auth helpers, Supabase client initialization, and shared utilities in vanilla JS
-- No frameworks, no build step — just clean HTML/CSS/JS
+- Built all 5 pages: login, signup, upload, library, view
+- CSS dark theme with purple/green palette, mobile responsive
+- Auth helpers, Supabase client setup, and shared utilities — all vanilla JS
+- No frameworks, no build step, no complexity
 
 ### Backend Development
 - Built the Supabase Edge Function in TypeScript/Deno:
   - `index.ts` — handles `POST /process-pdf` and `GET /status/:id`
-  - `prompts.ts` — structured AI prompts for summary, exam points, flashcards
+  - `prompts.ts` — structured AI prompts for summary, key exam points, and flashcards
   - `extract.ts` — PDF text extraction using pdf-parse
 - Set up database migrations with Row Level Security
-- Configured Storage bucket policies for per-user file isolation
+- Configured Storage bucket policies so each user's files are private
 
-### Agents & Skills
-- **code-reviewer agent** — Reviewed code for bugs, security issues, and performance
-- **brainstorming skill** — Used during the design phase to explore approaches
-- **pdf-summarizer skill** — Custom skill documenting the project for Claude Code
-
-### MCP Integration
-- Configured `.mcp.json` with GitHub and Supabase MCP servers
-- Used GitHub MCP for repository management
-- Used Supabase MCP for database queries and edge function deployment
+### Agents, Skills & MCP
+- **code-reviewer agent** — Caught bugs and security issues I would have missed
+- **pdf-summarizer skill** — Custom project skill documenting the app for Claude Code
+- **brainstorming skill** — Used during design phase to explore approaches
+- **`.mcp.json`** — Configured GitHub and Supabase MCP servers at project level
 
 ---
 
-## 3. Key Features Delivered
+## 4. Key Features
 
-- ✅ User signup/login with email + password (Supabase Auth)
+- ✅ Email + password signup/login (Supabase Auth)
 - ✅ Drag & drop PDF upload (up to 25 MB)
-- ✅ AI-powered summary generation (Claude API)
-- ✅ Key exam points extraction
-- ✅ Interactive click-to-flip flashcards
-- ✅ Persistent library with status badges (processing / done / error)
-- ✅ Real-time progress polling during AI processing
-- ✅ Row Level Security — users see only their own documents
+- ✅ AI-powered **summary notes** from lecture PDFs
+- ✅ **Key exam points** extraction — what's most likely on the test
+- ✅ Interactive click-to-flip **flashcards** for active recall
+- ✅ Persistent **library** with status badges (processing / done / error)
+- ✅ Real-time progress bar during AI processing (polling-based)
+- ✅ Row Level Security — each user sees only their own documents
 - ✅ API keys stored server-side (Supabase secrets), never exposed to browser
 - ✅ Mobile-responsive dark theme
 
 ---
 
-## 4. Technical Stack
+## 5. Technical Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -85,53 +92,58 @@ This project was built **entirely with Claude Code**. Here's how Claude Code con
 | Storage | Supabase Storage |
 | Database | Supabase Postgres |
 | PDF Parsing | pdf-parse (npm) |
-| AI | Claude API + Gemini API |
+| AI | Claude API |
 | MCP | GitHub MCP + Supabase MCP |
 | Dev Tools | Claude Code |
 
 ---
 
-## 5. Challenges & How I Solved Them
+## 6. Challenges & How I Solved Them
 
 ### Challenge 1: Edge Function body size limits
-**Problem:** Supabase Edge Functions have a 6 MB body limit, but lecture PDFs can be 20+ MB.
+**Problem:** Supabase Edge Functions have a 6 MB body limit, but U Ko Ko Ye's lecture PDFs can be 15–20+ MB.
 
-**Solution:** Upload PDFs directly to Supabase Storage from the browser first, then send only the storage path to the Edge Function. The Edge Function downloads the PDF from Storage internally.
+**Solution:** Upload PDFs directly to Supabase Storage from the browser, then send only the storage path to the Edge Function. The Edge Function downloads the PDF internally — no body limit issues.
 
-### Challenge 2: AI output format not always consistent
-**Problem:** Claude/Gemini sometimes returned responses that didn't parse correctly as structured output.
+### Challenge 2: Processing large PDFs without timing out
+**Problem:** A big PDF means lots of text. One AI call can't handle 100+ pages. Multiple calls risk hitting the Edge Function timeout.
 
-**Solution:** Added retry logic with sharper prompts on parse failure, and surfaced clear error messages to the user instead of crashing.
+**Solution:** Built a chunking system — the Edge Function splits text by page boundaries (60K characters per chunk), processes each chunk with Claude, then merges the results. Added a safety timeout (4 minutes) with a clear error message if it takes too long.
 
-### Challenge 3: Progress feedback during long AI processing
-**Problem:** AI processing can take 30+ seconds, and users need to know what's happening.
+### Challenge 3: AI output sometimes not parseable
+**Problem:** Claude occasionally returned responses that didn't parse correctly as structured output for the three sections.
 
-**Solution:** Implemented a polling pattern — the Edge Function updates the database row with progress status (processing → done/error), and the frontend polls `GET /status/:id` every few seconds with a visual progress bar.
+**Solution:** Added retry logic — if parsing fails, retry once with a sharper prompt. If both attempts fail, surface a clear error to the user instead of crashing silently.
 
-### Challenge 4: Keeping API keys secure in a browser app
-**Problem:** AI API keys must never be exposed to the client-side JavaScript.
+### Challenge 4: Progress feedback during long processing
+**Problem:** AI processing takes 30 seconds to 3 minutes. Users need to know what's happening.
 
-**Solution:** All AI calls happen inside the Supabase Edge Function. API keys are stored as Supabase secrets and injected at runtime. The browser never sees them.
+**Solution:** Polling pattern — the Edge Function writes progress to the database row (10% → 35% → 80% → 100%), and the frontend polls `GET /status/:id` every 1.5 seconds with a visual progress bar. No WebSocket server needed.
 
----
+### Challenge 5: Keeping API keys secure in a browser app
+**Problem:** Claude API key must never appear in client-side JavaScript.
 
-## 6. What I Learned
-
-1. **Supabase is a complete backend** — Auth, storage, database, and serverless functions all in one platform dramatically reduces the number of services needed.
-
-2. **Row Level Security is powerful but requires careful design** — Every table and bucket needs proper RLS policies. Writing them correctly from the start prevents data leaks.
-
-3. **The polling pattern works well for serverless** — WebSockets require persistent connections which don't fit serverless well. Polling with database-backed status is simpler and more reliable.
-
-4. **Claude Code agents make you a better developer** — The code-reviewer agent caught bugs and security issues I would have missed. Skills enforce a disciplined design → plan → implement workflow.
-
-5. **MCP servers extend what Claude Code can do** — GitHub MCP for repo management, Supabase MCP for database operations — these integrations made the development workflow seamless.
-
-6. **Vanilla JS can still build real apps** — No React, no build tools, no bundlers. Just HTML, CSS, and JavaScript — and it works great for this scope.
+**Solution:** All AI calls happen inside the Supabase Edge Function. The API key is stored as a Supabase secret and injected at runtime. The browser never touches it.
 
 ---
 
-## 7. Submission Checklist
+## 7. What I Learned
+
+1. **Supabase is a complete backend** — Auth, storage, database, and serverless functions all in one platform. I didn't need a separate server, database host, or auth provider.
+
+2. **Row Level Security matters from day one** — Writing correct RLS policies for every table and bucket ensures one user can never access another's files. It's not something you bolt on later.
+
+3. **Polling works great for serverless** — WebSockets need persistent connections that don't fit the serverless model. Polling with database-backed status is dead simple and perfectly adequate for progress updates.
+
+4. **Claude Code agents catch what you miss** — The code-reviewer agent flagged edge cases and error handling gaps I wouldn't have thought of. Skills keep the workflow disciplined.
+
+5. **MCP servers extend Claude Code's reach** — GitHub MCP for repo management and Supabase MCP for database operations made the workflow feel seamless. Having them in `.mcp.json` means the setup is documented right in the repo.
+
+6. **You don't need a framework** — Vanilla HTML, CSS, and JavaScript built a real, production-quality app. No React, no build tools, no bundlers needed.
+
+---
+
+## 8. Submission Checklist
 
 | Requirement | Status |
 |-------------|--------|
@@ -146,4 +158,4 @@ This project was built **entirely with Claude Code**. Here's how Claude Code con
 
 ---
 
-*Built with Claude Code · Supabase · Claude API*
+*Built with Claude Code for Vibe Code Tours · Supabase · Claude API*
