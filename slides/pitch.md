@@ -1,3 +1,8 @@
+---
+marp: true
+auto-advance: 20
+---
+
 # Smart PDF Lecture Summarizer — Pitch Deck (6 Slides × 20s)
 
 ---
