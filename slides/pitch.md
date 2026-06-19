@@ -3,11 +3,9 @@ marp: true
 auto-advance: 20
 ---
 
-# Smart PDF Lecture Summarizer — Pitch Deck (6 Slides × 20s)
+# Smart PDF Lecture Summarizer — 6×20 Pitch Deck
 
----
-
-## Slide 1: The Problem 🎓
+## The Problem 🎓
 
 **Lecture PDFs are long. Exam prep takes too much time.**
 
