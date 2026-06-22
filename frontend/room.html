@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>
+  (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
+</script>
+<title>Smart PDF Summarizer — Study Room</title>
+<link rel="stylesheet" href="css/style.css?v=3"/>
+<script type="importmap">
+{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+</script>
+</head>
+<body>
+<div class="control-bar" id="control-bar-target"></div>
+
+<div class="wrap">
+  <div class="top-bar">
+    <a href="rooms.html" class="btn btn-ghost btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      <span data-i18n="studyRooms">Study Rooms</span>
+    </a>
+    <div class="user-info">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn btn-danger btn-xs" id="logout-btn" data-i18n="logOut">Log out</button>
+    </div>
+  </div>
+
+  <div id="loading-state">
+    <div class="skeleton-card"><div class="skeleton skeleton-line w-60 title"></div><div class="skeleton skeleton-line w-80"></div></div>
+  </div>
+
+  <div id="err-box" role="alert" aria-live="polite"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
+
+  <div id="room-content" style="display:none">
+    <div class="room-header">
+      <h2 id="room-name"></h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-accent btn-sm" id="share-doc-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span data-i18n="shareDocument">Share Document</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="copy-code-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          <span id="copy-code-text" data-i18n="copyCode">Copy Code</span>
+        </button>
+        <button class="btn btn-danger btn-sm" id="leave-room-btn" data-i18n="leaveRoom">Leave Room</button>
+      </div>
+    </div>
+
+    <div class="room-invite-box">
+      <span style="font-size:.84rem;color:var(--muted)" data-i18n="roomInviteCode">Invite Code</span><span style="font-size:.84rem;color:var(--muted)">:</span>
+      <span class="room-invite-code" id="invite-code"></span>
+    </div>
+
+    <div class="room-section">
+      <h3 data-i18n="sharedDocs">Shared Documents</h3>
+      <div id="shared-docs"></div>
+    </div>
+
+    <!-- Share document picker -->
+    <div class="card" id="share-picker" style="display:none">
+      <h3 data-i18n="selectDocument" style="margin-bottom:14px;font-family:var(--font-heading)">Select a document to share</h3>
+      <div class="share-picker" id="share-picker-list"></div>
+      <div style="margin-top:14px;text-align:right">
+        <button class="btn btn-ghost btn-sm" id="cancel-share-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
+</div>
+
+<script type="module">
+import { sb } from './js/supabase-client.js';
+import { t } from './js/i18n.js';
+import { initUI, renderI18n } from './js/ui-init.js';
+import { esc, fmtDate } from './js/app.js';
+import { injectControlBar } from './js/shared-ui.js';
+import { toast } from './js/toast.js';
+import { confirm } from './js/confirm.js';
+import { getRoomDocuments, shareDocument, removeDocument, leaveRoom } from './js/rooms.js';
+injectControlBar();
+
+let session, user;
+try {
+  const sessResp = await sb.auth.getSession();
+  session = sessResp.data?.session;
+  const userResp = await sb.auth.getUser();
+  user = userResp.data?.user;
+} catch (err) { session = null; user = null; }
+if (!session) window.location.href = 'index.html';
+if (user) document.getElementById('user-email').textContent = user.email;
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  const ok = await confirm(t('logOut') + '?');
+  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
+});
+
+initUI(() => { renderI18n(); document.title = t('appName') + ' — ' + t('studyRooms'); });
+renderI18n();
+document.title = t('appName') + ' — ' + t('studyRooms');
+
+const roomId = new URLSearchParams(window.location.search).get('id');
+if (!roomId) { window.location.href = 'rooms.html'; }
+
+function showErr(msg) { document.getElementById('err-box').classList.add('show'); document.getElementById('err-text').textContent = msg; }
+
+// Load room details
+const { data: room, error: roomErr } = await sb.from('study_rooms').select('*').eq('id', roomId).single();
+const loadingEl = document.getElementById('loading-state');
+
+if (roomErr || !room) {
+  loadingEl.style.display = 'none';
+  showErr(t('roomNotFound'));
+} else {
+  loadingEl.style.display = 'none';
+  document.getElementById('room-content').style.display = 'block';
+  document.getElementById('room-name').textContent = room.name;
+  document.getElementById('invite-code').textContent = room.invite_code;
+
+  // Copy invite code
+  document.getElementById('copy-code-btn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(room.invite_code);
+      document.getElementById('copy-code-text').textContent = t('copied');
+      setTimeout(() => { document.getElementById('copy-code-text').textContent = t('copyCode'); }, 2000);
+    } catch {
+      toast('Failed to copy', 'error');
+    }
+  });
+
+  // Leave room
+  document.getElementById('leave-room-btn').addEventListener('click', async () => {
+    const ok = await confirm(t('leaveRoomConfirm'));
+    if (!ok) return;
+    const { error } = await leaveRoom(roomId);
+    if (error) return toast('Failed to leave room.', 'error');
+    window.location.href = 'rooms.html';
+  });
+
+  // Load shared documents
+  async function loadSharedDocs() {
+    const docs = await getRoomDocuments(roomId);
+    const container = document.getElementById('shared-docs');
+    container.innerHTML = '';
+
+    if (docs.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:32px;color:var(--muted)">${t('noSharedDocs')}</div>`;
+      return;
+    }
+
+    docs.forEach(doc => {
+      const card = document.createElement('div');
+      card.className = 'doc-item';
+      card.innerHTML = `
+        <div class="doc-icon done">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="doc-info">
+          <span class="doc-name">${esc(doc.filename)}</span>
+          <div class="doc-meta">${t('sharedBy')}: ${esc(doc.shared_by?.substring(0, 8) || 'Unknown')} · ${fmtDate(doc.shared_at)}</div>
+        </div>
+      `;
+      card.addEventListener('click', () => { window.location.href = 'view.html?id=' + doc.id; });
+      container.appendChild(card);
+    });
+  }
+
+  await loadSharedDocs();
+
+  // Share document picker
+  const sharePicker = document.getElementById('share-picker');
+  document.getElementById('share-doc-btn').addEventListener('click', async () => {
+    sharePicker.style.display = sharePicker.style.display === 'none' ? 'block' : 'none';
+    if (sharePicker.style.display === 'block') {
+      // Load user's done documents
+      const { data: myDocs } = await sb.from('documents').select('*').eq('status', 'done').order('created_at', { ascending: false });
+      const pickerList = document.getElementById('share-picker-list');
+      pickerList.innerHTML = '';
+
+      if (!myDocs || myDocs.length === 0) {
+        pickerList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">No documents to share.</div>';
+        return;
+      }
+
+      // Get already shared doc IDs
+      const sharedDocs = await getRoomDocuments(roomId);
+      const sharedIds = new Set(sharedDocs.map(d => d.id));
+
+      myDocs.forEach(doc => {
+        const alreadyShared = sharedIds.has(doc.id);
+        const item = document.createElement('div');
+        item.className = 'share-picker-item';
+        item.style.opacity = alreadyShared ? '0.5' : '1';
+        item.innerHTML = `
+          <span class="doc-name">${esc(doc.filename)}</span>
+          ${alreadyShared ? '<span style="font-size:.78rem;color:var(--muted)">Shared</span>' : ''}
+        `;
+        if (!alreadyShared) {
+          item.addEventListener('click', async () => {
+            const { error } = await shareDocument(roomId, doc.id);
+            if (error) return toast('Failed to share.', 'error');
+            toast('Document shared!', 'success');
+            sharePicker.style.display = 'none';
+            await loadSharedDocs();
+          });
+        }
+        pickerList.appendChild(item);
+      });
+    }
+  });
+
+  document.getElementById('cancel-share-btn').addEventListener('click', () => {
+    sharePicker.style.display = 'none';
+  });
+}
+</script>
+</body>
+</html>

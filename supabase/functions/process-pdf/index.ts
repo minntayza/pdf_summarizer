@@ -11,7 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { extractText, NoTextExtractedError, getWordCount } from "./extract.ts";
 import {
-  SYSTEM_PROMPT,
+  getSystemPrompt,
   buildUserPrompt,
   parseAIResponse,
   LectureOutput,
@@ -51,13 +51,14 @@ async function getUserId(req: Request): Promise<string | null> {
 
 // ── AI Provider Calls ───────────────────────────────────────────────
 
-async function callClaude(text: string): Promise<LectureOutput> {
+async function callClaude(text: string, language: string = "english"): Promise<LectureOutput> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("Claude API key not configured");
 
-  const model = Deno.env.get("CLAUDE_MODEL") || "claude-sonnet-4-6-20250514";
+  const baseUrl = Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1";
+  const model = Deno.env.get("CLAUDE_MODEL") || "mimo-v2.5-pro";
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const resp = await fetch(`${baseUrl}/v1/messages`, {
     method: "POST",
     headers: {
       "x-api-key": apiKey,
@@ -67,8 +68,8 @@ async function callClaude(text: string): Promise<LectureOutput> {
     body: JSON.stringify({
       model,
       max_tokens: 8192,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserPrompt(text) }],
+      system: getSystemPrompt(language),
+      messages: [{ role: "user", content: buildUserPrompt(text, language) }],
     }),
   });
 
@@ -88,7 +89,7 @@ async function callClaude(text: string): Promise<LectureOutput> {
   return parseAIResponse(raw);
 }
 
-async function callGemini(text: string): Promise<LectureOutput> {
+async function callGemini(text: string, language: string = "english"): Promise<LectureOutput> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("Gemini API key not configured");
 
@@ -100,8 +101,8 @@ async function callGemini(text: string): Promise<LectureOutput> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(text) }] }],
+        system_instruction: { parts: [{ text: getSystemPrompt(language) }] },
+        contents: [{ parts: [{ text: buildUserPrompt(text, language) }] }],
         generationConfig: { maxOutputTokens: 8192 },
       }),
     },
@@ -122,9 +123,10 @@ async function callGemini(text: string): Promise<LectureOutput> {
 async function callAI(
   text: string,
   provider: string,
+  language: string = "english",
 ): Promise<LectureOutput> {
-  if (provider === "gemini") return callGemini(text);
-  return callClaude(text); // default: claude
+  if (provider === "gemini") return callGemini(text, language);
+  return callClaude(text, language); // default: claude
 }
 
 // ── Process PDF (background, after fast response) ───────────────────
@@ -135,16 +137,17 @@ async function callAIWithChunking(
   text: string,
   provider: string,
   update: (fields: Record<string, unknown>) => Promise<void>,
+  language: string = "english",
 ): Promise<LectureOutput> {
   const label = provider === "gemini" ? "Gemini" : "Claude";
 
   // Small PDF — send in one shot
   if (text.length <= CHUNK_SIZE) {
     try {
-      return await callAI(text, provider);
+      return await callAI(text, provider, language);
     } catch {
       await update({ progress: 60, progress_msg: `Retrying with ${label}…` });
-      return await callAI(text, provider);
+      return await callAI(text, provider, language);
     }
   }
 
@@ -170,7 +173,7 @@ async function callAIWithChunking(
   }
 
   const totalChunks = chunks.length;
-  const merged: LectureOutput = { summary: "", key_points: "", flashcards: [] };
+  const merged: LectureOutput = { summary: "", key_points: "", flashcards: [], quiz: [] };
   const skippedChunks: number[] = [];
 
   for (let i = 0; i < totalChunks; i++) {
@@ -185,7 +188,7 @@ async function callAIWithChunking(
     // Retry once on failure (matches single-chunk behavior)
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        result = await callAI(chunks[i], provider);
+        result = await callAI(chunks[i], provider, language);
         break;
       } catch (err) {
         const isLast = attempt === 1;
@@ -206,6 +209,7 @@ async function callAIWithChunking(
       merged.summary += `${prefix}## Part ${i + 1}\n\n${result.summary}`;
       merged.key_points += `${prefix}### Part ${i + 1}\n\n${result.key_points}`;
       merged.flashcards.push(...result.flashcards);
+      merged.quiz.push(...result.quiz);
     }
   }
 
@@ -229,6 +233,7 @@ async function processPDF(
   userId: string,
   pdfPath: string,
   provider: string,
+  language: string = "english",
 ) {
   const update = async (fields: Record<string, unknown>) => {
     await supabaseService
@@ -278,7 +283,7 @@ async function processPDF(
     const label = provider === "gemini" ? "Gemini" : "Claude";
     await update({ progress: 35, progress_msg: `Calling ${label} AI…` });
 
-    const result = await callAIWithChunking(text, provider, update);
+    const result = await callAIWithChunking(text, provider, update, language);
 
     await update({ progress: 80, progress_msg: "Writing output files…" });
 
@@ -290,6 +295,15 @@ async function processPDF(
       .map(
         (fc, i) =>
           `## Flashcard ${i + 1}\n**Q:** ${fc.question}\n**A:** ${fc.answer}\n`,
+      )
+      .join("\n");
+
+    const quizLines = result.quiz
+      .map(
+        (q, i) => {
+          const opts = q.options.map((o, j) => `${String.fromCharCode(65 + j)}. ${o}`).join("\n");
+          return `## Question ${i + 1}\n${q.question}\n\n${opts}\n\n**Correct:** ${String.fromCharCode(65 + q.correct_index)}\n**Explanation:** ${q.explanation}\n`;
+        },
       )
       .join("\n");
 
@@ -321,10 +335,19 @@ async function processPDF(
           ),
           { contentType: "text/markdown", upsert: true },
         ),
+      supabaseService.storage
+        .from("outputs")
+        .upload(
+          `${userId}/${docId}/quiz.md`,
+          new TextEncoder().encode(
+            `# Quiz\n\n${quizLines}\n---\n> Generated by Smart PDF Summarizer (${label}) on ${dateStr}\n`,
+          ),
+          { contentType: "text/markdown", upsert: true },
+        ),
     ]);
 
     // Check for upload failures
-    const fileNames = ["summary.md", "key_points.md", "flashcards.md"];
+    const fileNames = ["summary.md", "key_points.md", "flashcards.md", "quiz.md"];
     const failedFiles: string[] = [];
     for (let i = 0; i < uploadResults.length; i++) {
       if (uploadResults[i].error) {
@@ -344,6 +367,7 @@ async function processPDF(
       progress_msg: "Complete!",
       output_prefix: outputPrefix,
       flashcard_count: result.flashcards.length,
+      quiz_count: result.quiz.length,
     });
 
     clearTimeout(timeoutId);
@@ -396,10 +420,11 @@ Deno.serve(async (req: Request) => {
     if (doc.status === "done" && doc.output_prefix) {
       const signedExpiry = 604800; // 7 days in seconds
 
-      const [summaryRes, keyPointsRes, flashcardsRes] = await Promise.all([
+      const [summaryRes, keyPointsRes, flashcardsRes, quizRes] = await Promise.all([
         supabase.storage.from("outputs").createSignedUrl(`${userId}/${docId}/summary.md`, signedExpiry),
         supabase.storage.from("outputs").createSignedUrl(`${userId}/${docId}/key_points.md`, signedExpiry),
         supabase.storage.from("outputs").createSignedUrl(`${userId}/${docId}/flashcards.md`, signedExpiry),
+        supabase.storage.from("outputs").createSignedUrl(`${userId}/${docId}/quiz.md`, signedExpiry),
       ]);
 
       // Only include URLs that were successfully generated
@@ -407,12 +432,14 @@ Deno.serve(async (req: Request) => {
         summary_url: summaryRes.data?.signedUrl || null,
         key_points_url: keyPointsRes.data?.signedUrl || null,
         flashcards_url: flashcardsRes.data?.signedUrl || null,
+        quiz_url: quizRes.data?.signedUrl || null,
       };
 
       // Log any failures so operators can investigate
       if (summaryRes.error) console.error("Failed to sign summary URL:", summaryRes.error);
       if (keyPointsRes.error) console.error("Failed to sign key_points URL:", keyPointsRes.error);
       if (flashcardsRes.error) console.error("Failed to sign flashcards URL:", flashcardsRes.error);
+      if (quizRes.error) console.error("Failed to sign quiz URL:", quizRes.error);
     }
 
     return corsResponse({
@@ -424,7 +451,9 @@ Deno.serve(async (req: Request) => {
       page_count: doc.page_count,
       word_count: doc.word_count,
       flashcard_count: doc.flashcard_count,
+      quiz_count: doc.quiz_count,
       provider: doc.provider,
+      language: doc.language,
       result,
       error: doc.error_msg,
       created_at: doc.created_at,
@@ -436,14 +465,14 @@ Deno.serve(async (req: Request) => {
     const userId = await getUserId(req);
     if (!userId) return corsResponse({ error: "Authentication required" }, 401);
 
-    let body: { doc_id?: string; pdf_path?: string; provider?: string };
+    let body: { doc_id?: string; pdf_path?: string; provider?: string; custom_filename?: string; language?: string };
     try {
       body = await req.json();
     } catch {
       return corsResponse({ error: "Invalid JSON body" }, 400);
     }
 
-    const { doc_id, pdf_path, provider } = body;
+    const { doc_id, pdf_path, provider, custom_filename, language } = body;
 
     if (!doc_id || !pdf_path) {
       return corsResponse(
@@ -465,43 +494,43 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    const aiLanguage = language || "english";
+
     // Insert document row
     const { error: insertErr } = await supabaseService
       .from("documents")
       .insert({
         id: doc_id,
         user_id: userId,
-        filename: pdf_path.split("/").pop() || "unknown.pdf",
+        filename: custom_filename || pdf_path.split("/").pop() || "unknown.pdf",
         provider: aiProvider,
         status: "processing",
         progress: 0,
         progress_msg: "Starting…",
         pdf_path: pdf_path.startsWith("pdfs/") ? pdf_path : `pdfs/${pdf_path}`,
+        language: aiLanguage,
       });
 
     if (insertErr) {
       return corsResponse({ error: `Database error: ${insertErr.message}` }, 500);
     }
 
-    // Return immediately — processing continues in background
+    // Process the PDF synchronously — the frontend polls the documents table
+    // for progress, so we don't need a background task. Awaiting directly avoids
+    // reliance on EdgeRuntime.waitUntil which may not be available in all runtimes.
     const normalizedPath = pdf_path.startsWith("pdfs/") ? pdf_path : `pdfs/${pdf_path}`;
 
-    // Use EdgeRuntime.waitUntil to keep the isolate alive until background work completes.
-    // This explicitly tells the runtime not to terminate the isolate before the promise settles.
-    const backgroundWork = processPDF(supabaseService, doc_id, userId, normalizedPath, aiProvider);
-    backgroundWork.catch((err) => {
+    try {
+      await processPDF(supabaseService, doc_id, userId, normalizedPath, aiProvider, aiLanguage);
+    } catch (err) {
       console.error("processPDF failed:", err);
-    });
-
-    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-      EdgeRuntime.waitUntil(backgroundWork);
     }
 
     return corsResponse(
       {
         doc_id,
         status: "processing",
-        message: "PDF processing started. Poll /status/" + doc_id + " for progress.",
+        message: "PDF processing completed. Poll /status/" + doc_id + " for results.",
       },
       202,
     );

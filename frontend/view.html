@@ -9,7 +9,7 @@
 </script>
 <title>Smart PDF Summarizer — View Document</title>
 <meta name="description" content="View AI-generated study notes, key points, and flashcards."/>
-<link rel="stylesheet" href="css/style.css?v=2"/>
+<link rel="stylesheet" href="css/style.css?v=3"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -52,12 +52,20 @@
       <button class="tab on" data-panel="summary"><span data-i18n="summary">Summary</span></button>
       <button class="tab" data-panel="keypoints"><span data-i18n="keyPoints">Key Points</span></button>
       <button class="tab" data-panel="flashcards"><span data-i18n="flashcards">Flashcards</span></button>
+      <button class="tab" data-panel="quiz"><span data-i18n="quiz">Quiz</span></button>
+      <button class="tab" data-panel="chat"><span data-i18n="askPDF">Ask</span></button>
     </div>
     <div class="panel on" id="p-summary"><div class="md" id="c-summary"></div></div>
     <div class="panel" id="p-keypoints"><div class="md" id="c-keypoints"></div></div>
     <div class="panel" id="p-flashcards">
       <p class="fc-hint-text" data-i18n="tapToFlip">Tap a card to reveal the answer</p>
       <div class="fc-grid" id="c-flashcards"></div>
+    </div>
+    <div class="panel" id="p-quiz">
+      <div id="c-quiz"></div>
+    </div>
+    <div class="panel" id="p-chat">
+      <div class="chat-container" id="c-chat"></div>
     </div>
   </div>
   <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
@@ -67,8 +75,11 @@
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
 import { initUI, renderI18n, initTabs, switchTab } from './js/ui-init.js';
-import { esc, md2html, fmtDate, parseFlashcards, renderFlashcards } from './js/app.js';
+import { esc, md2html, fmtDate, parseFlashcards, renderFlashcards, parseQuiz, renderQuiz, downloadBlob } from './js/app.js';
 import { injectControlBar } from './js/shared-ui.js';
+import { toast } from './js/toast.js';
+import { confirm } from './js/confirm.js';
+import { renderChat, sendChatMessage, getChatHistory, appendMessage, showTypingIndicator, removeTypingIndicator } from './js/chat.js';
 injectControlBar();
 
 let session, user;
@@ -77,13 +88,17 @@ try {
   session = sessResp.data?.session;
   const userResp = await sb.auth.getUser();
   user = userResp.data?.user;
-} catch {
+} catch (err) {
+  console.error('Auth check failed:', err);
   session = null;
   user = null;
 }
 if (!session) window.location.href = 'index.html';
 if (user) document.getElementById('user-email').textContent = user.email;
-document.getElementById('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  const ok = await confirm(t('logOut') + '?');
+  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
+});
 
 const docId = new URLSearchParams(window.location.search).get('id');
 if (!docId) { window.location.href = 'library.html'; }
@@ -97,12 +112,18 @@ function showErr(msg) { document.getElementById('err-box').classList.add('show')
 
 const loadingEl = document.getElementById('loading-state'), resultsEl = document.getElementById('results');
 const { data: doc, error } = await sb.from('documents').select('*').eq('id', docId).single();
-loadingEl.style.display='none';
 
-if (error || !doc) { showErr(t('documentNotFound')); }
-else if (doc.status === 'error') { showErr(doc.error_msg || t('somethingWentWrong')); }
-else if (doc.status !== 'done') { showErr(t('stillProcessing')); }
-else {
+if (error || !doc) {
+  loadingEl.style.display = 'none';
+  showErr(t('documentNotFound'));
+} else if (doc.status === 'error') {
+  loadingEl.style.display = 'none';
+  showErr(doc.error_msg || t('somethingWentWrong'));
+} else if (doc.status !== 'done') {
+  loadingEl.style.display = 'none';
+  showErr(t('stillProcessing'));
+} else {
+  // Keep skeleton visible while downloading content, then reveal
   resultsEl.classList.add('show');
   document.getElementById('view-filename').textContent = doc.filename;
   document.getElementById('result-badge').textContent = doc.provider==='gemini'?'Gemini':'Claude';
@@ -111,36 +132,123 @@ else {
   if (doc.page_count) st += `<div class="stat">${t('pages')}: <strong>${doc.page_count}</strong></div>`;
   if (doc.word_count) st += `<div class="stat">${t('words')}: <strong>${doc.word_count.toLocaleString()}</strong></div>`;
   if (doc.flashcard_count) st += `<div class="stat">${t('flashcards')}: <strong>${doc.flashcard_count}</strong></div>`;
+  if (doc.quiz_count) st += `<div class="stat">${t('quiz')}: <strong>${doc.quiz_count}</strong></div>`;
   st += `<div class="stat">${t('date')}: <strong>${fmtDate(doc.created_at)}</strong></div>`;
   document.getElementById('stats').innerHTML = st;
 
   const prefix = `${doc.user_id}/${docId}/`;
+  const baseName = doc.filename.replace(/\.pdf$/i, '');
   let downloadFailed = false;
+  let rawSummary = '', rawKeyPoints = '', rawFlashcards = '', rawQuiz = '';
   try {
-    const [sRes,kRes,fRes] = await Promise.all([
+    const [sRes,kRes,fRes,qRes] = await Promise.all([
       sb.storage.from('outputs').download(prefix+'summary.md'),
       sb.storage.from('outputs').download(prefix+'key_points.md'),
       sb.storage.from('outputs').download(prefix+'flashcards.md'),
+      sb.storage.from('outputs').download(prefix+'quiz.md'),
     ]);
-    if (sRes.data) { const tx = await sRes.data.text(); document.getElementById('c-summary').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
-    else if (sRes.error) { console.error('Failed to load summary:', sRes.error); downloadFailed = true; }
-    if (kRes.data) { const tx = await kRes.data.text(); document.getElementById('c-keypoints').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,'')); }
-    else if (kRes.error) { console.error('Failed to load key points:', kRes.error); downloadFailed = true; }
+    if (sRes.data) {
+      rawSummary = await sRes.data.text();
+      document.getElementById('c-summary').innerHTML = md2html(rawSummary.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+    } else if (sRes.error) { console.error('Failed to load summary:', sRes.error); downloadFailed = true; }
+    if (kRes.data) {
+      rawKeyPoints = await kRes.data.text();
+      document.getElementById('c-keypoints').innerHTML = md2html(rawKeyPoints.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+    } else if (kRes.error) { console.error('Failed to load key points:', kRes.error); downloadFailed = true; }
     if (fRes.data) {
-      const tx = await fRes.data.text();
-      const cards = parseFlashcards(tx);
+      rawFlashcards = await fRes.data.text();
+      const cards = parseFlashcards(rawFlashcards);
       renderFlashcards(document.getElementById('c-flashcards'), cards, t);
     } else if (fRes.error) { console.error('Failed to load flashcards:', fRes.error); downloadFailed = true; }
-  } catch {
+    if (qRes.data) {
+      rawQuiz = await qRes.data.text();
+      const quizQuestions = parseQuiz(rawQuiz);
+      renderQuiz(document.getElementById('c-quiz'), quizQuestions, t);
+    }
+  } catch (downErr) {
     downloadFailed = true;
-    console.error('Failed to download output files');
+    console.error('Failed to download output files:', downErr);
   }
-  if (downloadFailed) { showErr(t('networkError')); }
+
+  // Add download buttons
+  addViewDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz, baseName);
+
+  // Initialize chat
+  initChat(docId);
+
+  if (downloadFailed) { toast(t('networkError'), 'error'); }
+
+  // Now that content is loaded, hide skeleton
+  loadingEl.style.display = 'none';
 }
+
+function addViewDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz, baseName) {
+  const tabs = [
+    { panel: 'summary', content: rawSummary, suffix: '_summary.md' },
+    { panel: 'keypoints', content: rawKeyPoints, suffix: '_key_points.md' },
+    { panel: 'flashcards', content: rawFlashcards, suffix: '_flashcards.md' },
+    { panel: 'quiz', content: rawQuiz, suffix: '_quiz.md' },
+  ];
+  tabs.forEach(({ panel, content, suffix }) => {
+    const el = document.getElementById('p-' + panel);
+    if (!el) return;
+    const existing = el.querySelector('.panel-download');
+    if (existing) existing.remove();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'panel-download';
+    wrapper.innerHTML = '<button class="btn btn-ghost btn-xs dl-tab-btn">Download .md</button>';
+    wrapper.querySelector('.dl-tab-btn').addEventListener('click', () => {
+      if (content) downloadBlob(content, baseName + suffix);
+    });
+    el.insertBefore(wrapper, el.firstChild);
+  });
+
+  // Download All button
+  const header = document.querySelector('#results .res-head');
+  if (header && !header.querySelector('.dl-all-btn')) {
+    const dlAll = document.createElement('button');
+    dlAll.className = 'btn btn-ghost btn-sm dl-all-btn';
+    dlAll.textContent = 'Download All';
+    dlAll.addEventListener('click', () => {
+      if (rawSummary) { downloadBlob(rawSummary, baseName + '_summary.md'); }
+      setTimeout(() => { if (rawKeyPoints) downloadBlob(rawKeyPoints, baseName + '_key_points.md'); }, 300);
+      setTimeout(() => { if (rawFlashcards) downloadBlob(rawFlashcards, baseName + '_flashcards.md'); }, 600);
+      setTimeout(() => { if (rawQuiz) downloadBlob(rawQuiz, baseName + '_quiz.md'); }, 900);
+    });
+    header.querySelector('.res-actions')?.appendChild(dlAll);
+  }
+}
+
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => switchTab(tab));
 });
 initTabs();
+
+// Chat initialization
+async function initChat(docId) {
+  const container = document.getElementById('c-chat');
+  const history = await getChatHistory(docId);
+  renderChat(container, history, async (msg) => {
+    appendMessage(container, 'user', msg);
+    const typingEl = showTypingIndicator(container);
+    const sendBtn = container.querySelector('.chat-send-btn');
+    const input = container.querySelector('.chat-input');
+    if (sendBtn) sendBtn.disabled = true;
+    if (input) input.disabled = true;
+
+    const { data, error } = await sendChatMessage(docId, msg);
+    removeTypingIndicator(container);
+
+    if (error) {
+      appendMessage(container, 'assistant', 'Sorry, something went wrong. Please try again.');
+    } else {
+      appendMessage(container, 'assistant', data?.response || 'No response received.');
+    }
+
+    if (sendBtn) sendBtn.disabled = false;
+    if (input) { input.disabled = false; input.focus(); }
+  });
+}
 </script>
 </body>
 </html>

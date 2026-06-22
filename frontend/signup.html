@@ -9,7 +9,7 @@
 </script>
 <title>Smart PDF Summarizer — Sign Up</title>
 <meta name="description" content="Create an account on Smart PDF Lecture Summarizer."/>
-<link rel="stylesheet" href="css/style.css?v=2"/>
+<link rel="stylesheet" href="css/style.css?v=3"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -61,13 +61,15 @@ import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
 import { initUI, renderI18n } from './js/ui-init.js';
 import { injectControlBar } from './js/shared-ui.js';
+import { toast } from './js/toast.js';
 injectControlBar();
 
 let session;
 try {
   const sessResp = await sb.auth.getSession();
   session = sessResp.data?.session;
-} catch {
+} catch (err) {
+  console.error('Auth check failed:', err);
   session = null;
 }
 if (session) window.location.href = 'upload.html';
@@ -107,8 +109,8 @@ form.addEventListener('submit', async (e) => {
   try {
     const { error } = await sb.auth.signUp({ email, password: pw });
     if (error) throw error;
-    alert(t('accountCreated'));
-    window.location.href = 'index.html';
+    toast(t('accountCreated'), 'success');
+    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
   } catch (err) {
     formErr.textContent = err.message || t('signUpFailed');
     formErr.classList.add('show'); submitBtn.disabled = false;

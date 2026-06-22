@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>
+  (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
+</script>
+<title>Smart PDF Summarizer — Subjects</title>
+<link rel="stylesheet" href="css/style.css?v=3"/>
+<script type="importmap">
+{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+</script>
+</head>
+<body>
+<div class="control-bar" id="control-bar-target"></div>
+
+<div class="wrap">
+  <div class="top-bar">
+    <a href="library.html" class="btn btn-ghost btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      <span data-i18n="backToLibrary">Back to Library</span>
+    </a>
+    <div class="user-info">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn btn-danger btn-xs" id="logout-btn" data-i18n="logOut">Log out</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="logo logo-sm"><span class="logo-accent" data-i18n="manageSubjects">Manage Subjects</span></div>
+    <p class="subtitle">Organize your documents by course or subject.</p>
+  </header>
+
+  <div class="card" id="add-subject-card">
+    <h3 data-i18n="newSubject" style="margin-bottom:14px;font-family:var(--font-heading)">New Subject</h3>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <label class="provider-label" data-i18n="subjectName">Subject Name</label>
+        <input type="text" id="subject-name-input" placeholder="e.g. CS301 - Data Structures" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;"/>
+      </div>
+      <div>
+        <label class="provider-label" data-i18n="subjectColor">Color</label>
+        <div class="color-options" id="color-options">
+          <div class="color-opt active" data-color="#6366f1" style="background:#6366f1"></div>
+          <div class="color-opt" data-color="#8b5cf6" style="background:#8b5cf6"></div>
+          <div class="color-opt" data-color="#ec4899" style="background:#ec4899"></div>
+          <div class="color-opt" data-color="#f43f5e" style="background:#f43f5e"></div>
+          <div class="color-opt" data-color="#f97316" style="background:#f97316"></div>
+          <div class="color-opt" data-color="#eab308" style="background:#eab308"></div>
+          <div class="color-opt" data-color="#22c55e" style="background:#22c55e"></div>
+          <div class="color-opt" data-color="#14b8a6" style="background:#14b8a6"></div>
+          <div class="color-opt" data-color="#3b82f6" style="background:#3b82f6"></div>
+          <div class="color-opt" data-color="#6b7280" style="background:#6b7280"></div>
+        </div>
+      </div>
+      <button class="btn btn-accent" id="add-subject-btn" data-i18n="newSubject">Add Subject</button>
+    </div>
+  </div>
+
+  <div class="subject-list" id="subject-list"></div>
+
+  <div class="empty-state" id="empty-state" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v16H4z"/><path d="M4 10h16"/><path d="M10 4v16"/></svg>
+    <h3>No subjects yet</h3>
+    <p>Create your first subject above to start organizing.</p>
+  </div>
+
+  <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
+</div>
+
+<script type="module">
+import { sb } from './js/supabase-client.js';
+import { t } from './js/i18n.js';
+import { initUI, renderI18n } from './js/ui-init.js';
+import { esc } from './js/app.js';
+import { injectControlBar } from './js/shared-ui.js';
+import { toast } from './js/toast.js';
+import { confirm } from './js/confirm.js';
+import { getSubjects, createSubject, updateSubject, deleteSubject } from './js/subjects.js';
+injectControlBar();
+
+let session, user;
+try {
+  const sessResp = await sb.auth.getSession();
+  session = sessResp.data?.session;
+  const userResp = await sb.auth.getUser();
+  user = userResp.data?.user;
+} catch (err) { session = null; user = null; }
+if (!session) window.location.href = 'index.html';
+if (user) document.getElementById('user-email').textContent = user.email;
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  const ok = await confirm(t('logOut') + '?');
+  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
+});
+
+initUI(() => { renderI18n(); document.title = t('appName') + ' — ' + t('manageSubjects'); });
+renderI18n();
+document.title = t('appName') + ' — ' + t('manageSubjects');
+
+let selectedColor = '#6366f1';
+const listEl = document.getElementById('subject-list');
+const emptyEl = document.getElementById('empty-state');
+
+// Color picker
+document.getElementById('color-options').addEventListener('click', e => {
+  const opt = e.target.closest('.color-opt');
+  if (!opt) return;
+  document.querySelectorAll('.color-opt').forEach(o => o.classList.remove('active'));
+  opt.classList.add('active');
+  selectedColor = opt.dataset.color;
+});
+
+// Add subject
+document.getElementById('add-subject-btn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('subject-name-input');
+  const name = nameInput.value.trim();
+  if (!name) return toast('Please enter a subject name.', 'error');
+
+  const { data, error } = await createSubject(name, selectedColor);
+  if (error) {
+    if (error.code === '23505') return toast('A subject with this name already exists.', 'error');
+    return toast('Failed to create subject.', 'error');
+  }
+  nameInput.value = '';
+  toast('Subject created!', 'success');
+  await loadSubjects();
+});
+
+// Enter key on input
+document.getElementById('subject-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('add-subject-btn').click();
+});
+
+async function loadSubjects() {
+  const subjects = await getSubjects();
+  listEl.innerHTML = '';
+  if (subjects.length === 0) {
+    emptyEl.hidden = false;
+    return;
+  }
+  emptyEl.hidden = true;
+
+  subjects.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'subject-row';
+    row.innerHTML = `
+      <span class="subject-dot" style="background:${s.color};width:12px;height:12px;border-radius:50%;flex-shrink:0"></span>
+      <span class="subject-name">${esc(s.name)}</span>
+      <div class="subject-actions">
+        <button class="btn btn-ghost btn-xs edit-btn">Edit</button>
+        <button class="btn btn-danger btn-xs del-btn">Delete</button>
+      </div>
+    `;
+
+    row.querySelector('.del-btn').addEventListener('click', async () => {
+      const ok = await confirm(t('deleteSubjectConfirm'));
+      if (!ok) return;
+      const { error } = await deleteSubject(s.id);
+      if (error) return toast('Failed to delete.', 'error');
+      toast('Subject deleted.', 'success');
+      await loadSubjects();
+    });
+
+    row.querySelector('.edit-btn').addEventListener('click', async () => {
+      const newName = prompt(t('subjectName') + ':', s.name);
+      if (!newName || newName.trim() === s.name) return;
+      const { error } = await updateSubject(s.id, newName.trim());
+      if (error) return toast('Failed to update.', 'error');
+      toast('Subject updated.', 'success');
+      await loadSubjects();
+    });
+
+    listEl.appendChild(row);
+  });
+}
+
+await loadSubjects();
+</script>
+</body>
+</html>

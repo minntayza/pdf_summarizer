@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>
+  (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
+</script>
+<title>Smart PDF Summarizer — Review</title>
+<link rel="stylesheet" href="css/style.css?v=3"/>
+<script type="importmap">
+{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+</script>
+</head>
+<body>
+<div class="control-bar" id="control-bar-target"></div>
+
+<div class="wrap">
+  <div class="top-bar">
+    <a href="library.html" class="btn btn-ghost btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      <span data-i18n="backToLibrary">Back to Library</span>
+    </a>
+    <div class="user-info">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn btn-danger btn-xs" id="logout-btn" data-i18n="logOut">Log out</button>
+    </div>
+  </div>
+
+  <div id="loading-state">
+    <div class="skeleton-card"><div class="skeleton skeleton-line w-60 title"></div><div class="skeleton skeleton-line w-80"></div></div>
+  </div>
+
+  <div id="err-box" role="alert" aria-live="polite"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
+
+  <div id="review-area"></div>
+
+  <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
+</div>
+
+<script type="module">
+import { sb } from './js/supabase-client.js';
+import { t } from './js/i18n.js';
+import { initUI, renderI18n } from './js/ui-init.js';
+import { esc, parseFlashcards } from './js/app.js';
+import { injectControlBar } from './js/shared-ui.js';
+import { toast } from './js/toast.js';
+import { confirm } from './js/confirm.js';
+import { getDueCards, recordReview, getAllReviews } from './js/srs.js';
+injectControlBar();
+
+let session, user;
+try {
+  const sessResp = await sb.auth.getSession();
+  session = sessResp.data?.session;
+  const userResp = await sb.auth.getUser();
+  user = userResp.data?.user;
+} catch (err) { session = null; user = null; }
+if (!session) window.location.href = 'index.html';
+if (user) document.getElementById('user-email').textContent = user.email;
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  const ok = await confirm(t('logOut') + '?');
+  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
+});
+
+initUI(() => { renderI18n(); document.title = t('appName') + ' — ' + t('review'); });
+renderI18n();
+document.title = t('appName') + ' — ' + t('review');
+
+const docId = new URLSearchParams(window.location.search).get('id');
+if (!docId) { window.location.href = 'library.html'; }
+
+const reviewArea = document.getElementById('review-area');
+const loadingEl = document.getElementById('loading-state');
+
+function showErr(msg) { document.getElementById('err-box').classList.add('show'); document.getElementById('err-text').textContent = msg; }
+
+// Load document and flashcards
+const { data: doc, error: docErr } = await sb.from('documents').select('*').eq('id', docId).single();
+if (docErr || !doc || doc.status !== 'done') {
+  loadingEl.style.display = 'none';
+  showErr('Document not found or not ready.');
+} else {
+  // Download flashcards
+  const prefix = `${doc.user_id}/${docId}/`;
+  const { data: fcBlob, error: fcErr } = await sb.storage.from('outputs').download(prefix + 'flashcards.md');
+  if (fcErr || !fcBlob) {
+    loadingEl.style.display = 'none';
+    showErr('Failed to load flashcards.');
+  } else {
+    const rawFc = await fcBlob.text();
+    const allCards = parseFlashcards(rawFc);
+
+    // Get due cards
+    const dueReviews = await getDueCards(docId);
+    const allReviews = await getAllReviews(docId);
+
+    loadingEl.style.display = 'none';
+
+    if (dueReviews.length === 0) {
+      reviewArea.innerHTML = `
+        <div class="card" style="text-align:center;padding:48px">
+          <h2 style="font-family:var(--font-heading);margin-bottom:12px">${t('noCardsDue')}</h2>
+          <p style="color:var(--muted);margin-bottom:20px">All flashcards are up to date. Come back later!</p>
+          <a href="view.html?id=${docId}" class="btn btn-ghost">${t('flashcards')}</a>
+        </div>
+      `;
+    } else {
+      // Build review queue: due cards with their content
+      const reviewQueue = dueReviews.map(r => ({
+        index: r.card_index,
+        card: allCards[r.card_index],
+        review: r,
+      })).filter(r => r.card); // filter out invalid indices
+
+      let currentIndex = 0;
+
+      function renderReviewCard() {
+        if (currentIndex >= reviewQueue.length) {
+          renderComplete();
+          return;
+        }
+
+        const item = reviewQueue[currentIndex];
+        const progress = currentIndex / reviewQueue.length;
+
+        reviewArea.innerHTML = `
+          <div class="review-progress">
+            ${t('card')} ${currentIndex + 1} / ${reviewQueue.length}
+            <div class="review-progress-bar"><div class="review-progress-fill" style="width:${progress * 100}%"></div></div>
+          </div>
+          <div class="review-card" id="review-card" tabindex="0" role="button" aria-label="Flip card">
+            <div class="fc-inner">
+              <div class="fc-front">
+                <div class="lbl">${t('card')} ${item.index + 1}</div>
+                <div class="q" style="font-size:1.05rem">${esc(item.card.q)}</div>
+                <div class="fc-hint">${t('clickToFlip')}</div>
+              </div>
+              <div class="fc-back">
+                <div class="lbl">${t('answerLabel')}</div>
+                <div class="a" style="font-size:1.05rem">${esc(item.card.a)}</div>
+                <div class="fc-hint">${t('clickToFlip')}</div>
+              </div>
+            </div>
+          </div>
+          <div class="review-rating" id="review-rating" style="display:none">
+            <button class="btn btn-danger btn-sm" data-quality="1">${t('again')}</button>
+            <button class="btn btn-ghost btn-sm" data-quality="2">${t('hard')}</button>
+            <button class="btn btn-accent btn-sm" data-quality="3">${t('good')}</button>
+            <button class="btn btn-primary btn-sm" data-quality="4">${t('easy')}</button>
+          </div>
+        `;
+
+        const card = document.getElementById('review-card');
+        const rating = document.getElementById('review-rating');
+
+        card.addEventListener('click', () => {
+          card.classList.toggle('flipped');
+          if (card.classList.contains('flipped')) {
+            rating.style.display = 'flex';
+          }
+        });
+        card.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            card.classList.toggle('flipped');
+            if (card.classList.contains('flipped')) rating.style.display = 'flex';
+          }
+        });
+
+        rating.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const quality = parseInt(btn.dataset.quality);
+            await recordReview(docId, item.index, quality);
+            currentIndex++;
+            renderReviewCard();
+          });
+        });
+      }
+
+      function renderComplete() {
+        reviewArea.innerHTML = `
+          <div class="card" style="text-align:center;padding:48px">
+            <h2 style="font-family:var(--font-heading);margin-bottom:12px;color:var(--success)">${t('reviewComplete')}</h2>
+            <p style="color:var(--muted);margin-bottom:20px">${t('cardsReviewed')}: ${reviewQueue.length}</p>
+            <div style="display:flex;gap:10px;justify-content:center">
+              <a href="view.html?id=${docId}" class="btn btn-ghost">${t('flashcards')}</a>
+              <a href="library.html" class="btn btn-accent">${t('backToLibrary')}</a>
+            </div>
+          </div>
+        `;
+      }
+
+      renderReviewCard();
+    }
+  }
+}
+</script>
+</body>
+</html>

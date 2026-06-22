@@ -14,3 +14,4 @@ package-lock.json
 # Project
 output/
 input/
+supabase/.temp/

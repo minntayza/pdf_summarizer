@@ -9,7 +9,7 @@
 </script>
 <title>Smart PDF Summarizer — Library</title>
 <meta name="description" content="Your saved lecture summaries and flashcards."/>
-<link rel="stylesheet" href="css/style.css?v=2"/>
+<link rel="stylesheet" href="css/style.css?v=3"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -19,10 +19,14 @@
 
 <div class="wrap">
   <div class="top-bar">
-    <a href="upload.html" class="btn btn-accent btn-sm">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span data-i18n="uploadNewPDF">Upload New PDF</span>
-    </a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="upload.html" class="btn btn-accent btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-i18n="uploadNewPDF">Upload New PDF</span>
+      </a>
+      <a href="subjects.html" class="btn btn-ghost btn-sm" data-i18n="subjects">Subjects</a>
+      <a href="rooms.html" class="btn btn-ghost btn-sm" data-i18n="studyRooms">Study Rooms</a>
+    </div>
     <div class="user-info">
       <span class="user-email" id="user-email"></span>
       <button class="btn btn-danger btn-xs" id="logout-btn" data-i18n="logOut">Log out</button>
@@ -36,6 +40,7 @@
 
   <div id="err-box" role="alert" aria-live="polite"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
 
+  <div class="subject-filter" id="subject-filter"></div>
   <div class="doc-list" id="doc-list"></div>
 
   <div class="empty-state" id="empty-state" hidden>
@@ -58,8 +63,11 @@
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
 import { initUI, renderI18n } from './js/ui-init.js';
-import { esc, fmtDate } from './js/app.js';
+import { esc, fmtDate, renderDocList } from './js/app.js';
 import { injectControlBar } from './js/shared-ui.js';
+import { toast } from './js/toast.js';
+import { confirm } from './js/confirm.js';
+import { getSubjects } from './js/subjects.js';
 injectControlBar();
 
 let session, user;
@@ -68,43 +76,242 @@ try {
   session = sessResp.data?.session;
   const userResp = await sb.auth.getUser();
   user = userResp.data?.user;
-} catch {
-  // Supabase unreachable — show error but don't redirect (user may be authenticated)
+} catch (err) {
+  console.error('Auth check failed:', err);
   session = null;
   user = null;
 }
 if (!session) { window.location.href = 'index.html'; }
 if (user) document.getElementById('user-email').textContent = user.email;
-document.getElementById('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  const ok = await confirm(t('logOut') + '?');
+  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
+});
 
 const listEl = document.getElementById('doc-list'), loadingEl = document.getElementById('loading-state'), emptyEl = document.getElementById('empty-state');
+const filterEl = document.getElementById('subject-filter');
+
+let currentDocs = []; // keep reference for delete handler
+let allDocs = []; // unfiltered docs
+let subjects = []; // all subjects
+let activeSubjectId = null; // null = all
+
+// Load subjects for filter
+async function loadSubjects() {
+  subjects = await getSubjects();
+  renderSubjectFilter();
+}
+
+function renderSubjectFilter() {
+  filterEl.innerHTML = '';
+  // "All" pill
+  const allPill = document.createElement('button');
+  allPill.className = 'subject-pill' + (activeSubjectId === null ? ' active' : '');
+  allPill.textContent = t('allSubjects');
+  allPill.addEventListener('click', () => { activeSubjectId = null; renderSubjectFilter(); filterDocs(); });
+  filterEl.appendChild(allPill);
+
+  subjects.forEach(s => {
+    const pill = document.createElement('button');
+    pill.className = 'subject-pill' + (activeSubjectId === s.id ? ' active' : '');
+    pill.innerHTML = `<span class="subject-dot" style="background:${s.color}"></span> ${esc(s.name)}`;
+    pill.addEventListener('click', () => { activeSubjectId = s.id; renderSubjectFilter(); filterDocs(); });
+    filterEl.appendChild(pill);
+  });
+}
+
+function filterDocs() {
+  if (activeSubjectId === null) {
+    currentDocs = allDocs;
+  } else {
+    currentDocs = allDocs.filter(d => d.subject_id === activeSubjectId);
+  }
+  renderDocs(currentDocs);
+}
+
+async function deleteDoc(doc, docEl) {
+  const ok = await confirm('Delete "' + doc.filename + '" and all its study materials?');
+  if (!ok) return;
+
+  docEl.style.opacity = '0.4';
+  docEl.style.pointerEvents = 'none';
+
+  try {
+    // Delete output files from storage (summary, key points, flashcards, quiz)
+    const prefix = doc.user_id + '/' + doc.id + '/';
+    await sb.storage.from('outputs').remove([
+      prefix + 'summary.md',
+      prefix + 'key_points.md',
+      prefix + 'flashcards.md',
+      prefix + 'quiz.md',
+    ]);
+
+    // Delete uploaded PDF from storage
+    const pdfPath = doc.pdf_path ? doc.pdf_path.replace('pdfs/', '') : doc.user_id + '/' + doc.id + '.pdf';
+    await sb.storage.from('pdfs').remove([pdfPath]);
+
+    // Delete document row from database
+    const { error } = await sb.from('documents').delete().eq('id', doc.id);
+    if (error) throw error;
+
+    // Animate out
+    docEl.style.transition = 'opacity .25s ease, transform .25s ease';
+    docEl.style.transform = 'translateX(20px)';
+    docEl.style.opacity = '0';
+    setTimeout(() => {
+      docEl.remove();
+      // Show empty state if no docs left
+      if (listEl.children.length === 0) {
+        emptyEl.hidden = false;
+      }
+    }, 300);
+
+    toast('Deleted: ' + doc.filename, 'success');
+  } catch (err) {
+    console.error('Delete failed:', err);
+    docEl.style.opacity = '1';
+    docEl.style.pointerEvents = '';
+    toast('Failed to delete. Try again.', 'error');
+  }
+}
+
+function startDocRename(nameEl, doc) {
+  const original = nameEl.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = original;
+  input.className = 'doc-name-input';
+  input.style.cssText = 'background:var(--bg);border:1px solid var(--gold);border-radius:var(--rs);padding:2px 6px;color:var(--text);font-family:var(--font-body);font-size:.88rem;width:100%;max-width:260px;outline:none;';
+  nameEl.innerHTML = '';
+  nameEl.appendChild(input);
+  input.focus();
+  input.select();
+
+  const commit = async () => {
+    const v = input.value.trim();
+    if (!v || v === original) {
+      nameEl.textContent = original;
+      return;
+    }
+    const newName = v.endsWith('.pdf') ? v : v + '.pdf';
+    // Update in DB
+    const { error } = await sb.from('documents').update({ filename: newName }).eq('id', doc.id);
+    if (error) {
+      nameEl.textContent = original;
+      toast('Rename failed', 'error');
+      return;
+    }
+    nameEl.textContent = newName;
+    toast('Renamed to ' + newName, 'success');
+  };
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { nameEl.textContent = original; }
+  });
+}
 
 async function loadDocs() {
   try {
-    const { data: docs, error } = await sb.from('documents').select('*').order('created_at',{ascending:false});
+    const { data: docs, error } = await sb.from('documents').select('*, subjects(name, color)').order('created_at',{ascending:false});
+    allDocs = docs || [];
     loadingEl.style.display='none';
-    if (error) { showErr(t('somethingWentWrong')); return; }
+    if (error) { toast(t('somethingWentWrong'), 'error'); return; }
     if (!docs || docs.length===0) { emptyEl.hidden = false; return; }
     emptyEl.hidden = true;
-    listEl.innerHTML = docs.map(doc => {
-    const done=doc.status==='done', proc=doc.status==='processing';
-    const cls=done?'done':(proc?'processing':'error');
-    const label=done?t('done'):(proc?t('processing'):t('error'));
-    const icon=done
-      ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
-      : proc
-      ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
-      : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-    const meta=[doc.page_count?doc.page_count+' '+t('pages'):'', doc.word_count?doc.word_count.toLocaleString()+' '+t('words'):'', doc.flashcard_count?doc.flashcard_count+' '+t('flashcards'):'', doc.provider==='gemini'?'Gemini':'Claude'].filter(Boolean).join(' · ');
-    return `<a href="${done?'view.html?id='+doc.id:'#'}" class="doc-item${done?'':' disabled'}">
-      <div class="doc-icon ${done?'done':(proc?'proc':'')}">${icon}</div>
-      <div class="doc-info"><div class="doc-name">${esc(doc.filename)}</div><div class="doc-meta">${meta||fmtDate(doc.created_at)}</div></div>
+
+    // Load subjects for filter
+    await loadSubjects();
+    filterDocs();
+  } catch (err) {
+    console.error('Failed to load documents:', err);
+    toast(t('networkError'), 'error');
+    loadingEl.style.display = 'none';
+  }
+}
+
+function renderDocs(docs) {
+    listEl.innerHTML = '';
+    if (docs.length === 0) {
+      emptyEl.hidden = false;
+      return;
+    }
+    emptyEl.hidden = true;
+
+    const docItems = docs.map(doc => {
+      const done=doc.status==='done', proc=doc.status==='processing';
+      const cls=done?'done':(proc?'processing':'error');
+      const label=done?t('done'):(proc?t('processing'):t('error'));
+      const icon=done
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+        : proc
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+      const meta=[doc.page_count?doc.page_count+' '+t('pages'):'', doc.word_count?doc.word_count.toLocaleString()+' '+t('words'):'', doc.flashcard_count?doc.flashcard_count+' '+t('flashcards'):'', doc.provider==='gemini'?'Gemini':'Claude'].filter(Boolean).join(' · ');
+      const subjectBadge = doc.subjects ? `<span class="subject-badge" style="color:${doc.subjects.color};border-color:${doc.subjects.color}40;background:${doc.subjects.color}10"><span class="subject-dot" style="background:${doc.subjects.color}"></span>${esc(doc.subjects.name)}</span>` : '';
+      const html = `<div class="doc-icon ${done?'done':(proc?'proc':'')}">${icon}</div>
+      <div class="doc-info"><span class="doc-name" data-doc-id="${doc.id}" title="Click to rename">${esc(doc.filename)}</span><div class="doc-meta">${meta||fmtDate(doc.created_at)} ${subjectBadge}</div></div>
       <div class="doc-status ${cls}">${label}</div>
       ${proc?'<div class="spinner"></div>':''}
-    </a>`;
-  }).join('');
-  } catch {
-    showErr(t('networkError'));
+      <button class="doc-delete-btn" title="Delete" aria-label="Delete ${esc(doc.filename)}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+      </button>`;
+      return { html, doc, done };
+    });
+
+    renderDocList(listEl, docItems, ({ doc, done }) => {
+      if (done) window.location.href = 'view.html?id=' + doc.id;
+    });
+
+  // Wire up delete buttons
+  listEl.querySelectorAll('.doc-delete-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      const docItem = btn.closest('.doc-item');
+      const idx = [...listEl.children].indexOf(docItem);
+      if (idx >= 0 && idx < docs.length) deleteDoc(docs[idx], docItem);
+    });
+  });
+
+  // Wire up rename on doc-name click
+  listEl.querySelectorAll('.doc-name').forEach(nameEl => {
+    nameEl.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      const docItem = nameEl.closest('.doc-item');
+      const idx = [...listEl.children].indexOf(docItem);
+      if (idx >= 0 && idx < docs.length) startDocRename(nameEl, docs[idx]);
+    });
+  });
+}
+
+    // Wire up delete buttons
+    listEl.querySelectorAll('.doc-delete-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        const docItem = btn.closest('.doc-item');
+        const idx = [...listEl.children].indexOf(docItem);
+        if (idx >= 0 && idx < currentDocs.length) deleteDoc(currentDocs[idx], docItem);
+      });
+    });
+
+    // Wire up rename on doc-name click
+    listEl.querySelectorAll('.doc-name').forEach(nameEl => {
+      nameEl.addEventListener('click', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        const docItem = nameEl.closest('.doc-item');
+        const idx = [...listEl.children].indexOf(docItem);
+        if (idx >= 0 && idx < currentDocs.length) startDocRename(nameEl, currentDocs[idx]);
+      });
+    });
+  } catch (err) {
+    console.error('Failed to load documents:', err);
+    toast(t('networkError'), 'error');
+    loadingEl.style.display = 'none';
   }
 }
 

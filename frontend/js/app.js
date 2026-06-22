@@ -64,6 +64,41 @@ export function parseFlashcards(mdText) {
   return cards;
 }
 
+// ── Download blob as file ──────────────────────────────────
+export function downloadBlob(content, filename) {
+  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Render document list with staggered animation ──────────
+export function renderDocList(container, docItems, clickHandler) {
+  container.innerHTML = '';
+  docItems.forEach((doc, i) => {
+    const div = document.createElement('div');
+    div.className = 'doc-item';
+    div.style.animationDelay = (i * 40) + 'ms';
+    div.innerHTML = doc.html;
+    if (clickHandler) {
+      div.addEventListener('click', () => clickHandler(doc));
+      div.tabIndex = 0;
+      div.setAttribute('role', 'button');
+      div.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          clickHandler(doc);
+        }
+      });
+    }
+    container.appendChild(div);
+  });
+}
+
 // ── Render flashcards with keyboard accessibility ────────
 export function renderFlashcards(container, cards, tFn) {
   const hint = tFn('clickToFlip'), lbl = tFn('card'), ansLabel = tFn('answerLabel');
@@ -80,5 +115,99 @@ export function renderFlashcards(container, cards, tFn) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); div.classList.toggle('flipped'); }
     });
     container.appendChild(div);
+  });
+}
+
+// ── Parse quiz from markdown ─────────────────────────────
+export function parseQuiz(mdText) {
+  const questions = [];
+  let cur = null;
+  let options = [];
+  let correctIdx = -1;
+  let explanation = '';
+
+  for (const line of mdText.split('\n')) {
+    const qMatch = line.match(/^## Question (\d+)/);
+    const optMatch = line.match(/^([A-D])\.\s+(.+)/);
+    const correctMatch = line.match(/^\*\*Correct:\*\*\s+([A-D])/);
+    const explMatch = line.match(/^\*\*Explanation:\*\*\s+(.+)/);
+
+    if (qMatch) {
+      if (cur && options.length > 0) {
+        questions.push({ question: cur, options, correct_index: correctIdx, explanation });
+      }
+      cur = '';
+      options = [];
+      correctIdx = -1;
+      explanation = '';
+    } else if (optMatch) {
+      options.push(optMatch[2]);
+    } else if (correctMatch) {
+      correctIdx = correctMatch[1].charCodeAt(0) - 65;
+    } else if (explMatch) {
+      explanation = explMatch[1];
+    } else if (cur !== null && line.trim() && !line.startsWith('##')) {
+      cur = (cur ? cur + ' ' : '') + line.trim();
+    }
+  }
+  if (cur && options.length > 0) {
+    questions.push({ question: cur, options, correct_index: correctIdx, explanation });
+  }
+  return questions;
+}
+
+// ── Render quiz with scoring ─────────────────────────────
+export function renderQuiz(container, questions, tFn) {
+  container.innerHTML = '';
+  let score = 0;
+  let answered = 0;
+
+  const scoreEl = document.createElement('div');
+  scoreEl.className = 'quiz-score';
+  scoreEl.textContent = `0 / ${questions.length}`;
+  container.appendChild(scoreEl);
+
+  questions.forEach((q, i) => {
+    const card = document.createElement('div');
+    card.className = 'quiz-card';
+    card.innerHTML = `
+      <div class="quiz-q">${esc(q.question)}</div>
+      <div class="quiz-options">
+        ${q.options.map((opt, j) => `
+          <button class="quiz-opt" data-idx="${j}" data-correct="${q.correct_index}">
+            <span class="quiz-opt-letter">${String.fromCharCode(65 + j)}</span>
+            <span class="quiz-opt-text">${esc(opt)}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="quiz-explanation" style="display:none">${esc(q.explanation)}</div>
+    `;
+
+    card.querySelectorAll('.quiz-opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (card.classList.contains('answered')) return;
+        card.classList.add('answered');
+        answered++;
+
+        const selected = parseInt(btn.dataset.idx);
+        const correct = parseInt(btn.dataset.correct);
+
+        if (selected === correct) {
+          btn.classList.add('correct');
+          score++;
+        } else {
+          btn.classList.add('wrong');
+          card.querySelector(`[data-idx="${correct}"]`).classList.add('correct');
+        }
+
+        card.querySelector('.quiz-explanation').style.display = 'block';
+        scoreEl.textContent = `${score} / ${questions.length}`;
+        if (answered === questions.length) {
+          scoreEl.classList.add('quiz-complete');
+        }
+      });
+    });
+
+    container.appendChild(card);
   });
 }

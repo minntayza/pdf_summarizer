@@ -9,7 +9,7 @@
 </script>
 <title>Smart PDF Summarizer — Upload</title>
 <meta name="description" content="Upload a lecture PDF and get AI-generated study materials."/>
-<link rel="stylesheet" href="css/style.css?v=2"/>
+<link rel="stylesheet" href="css/style.css?v=3"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -35,6 +35,26 @@
   </header>
 
   <div class="card" id="upload-card">
+    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px">
+        <label class="provider-label" data-i18n="subjects">Subject</label>
+        <select id="subject-select" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
+          <option value="" data-i18n="noSubject">No Subject</option>
+        </select>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label class="provider-label" data-i18n="outputLanguage">Output Language</label>
+        <select id="language-select" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
+          <option value="english" data-i18n="langEnglish">English</option>
+          <option value="myanmar" data-i18n="langMyanmar">Myanmar</option>
+          <option value="chinese" data-i18n="langChinese">Chinese</option>
+          <option value="japanese" data-i18n="langJapanese">Japanese</option>
+          <option value="korean" data-i18n="langKorean">Korean</option>
+          <option value="thai" data-i18n="langThai">Thai</option>
+        </select>
+      </div>
+    </div>
+
     <span class="provider-label" data-i18n="aiProvider">AI Provider</span>
     <div class="provider-toggle">
       <button class="prov-btn active" id="btn-claude">
@@ -89,12 +109,20 @@
       <button class="tab on" data-panel="summary"><span data-i18n="summary">Summary</span></button>
       <button class="tab" data-panel="keypoints"><span data-i18n="keyPoints">Key Points</span></button>
       <button class="tab" data-panel="flashcards"><span data-i18n="flashcards">Flashcards</span></button>
+      <button class="tab" data-panel="quiz"><span data-i18n="quiz">Quiz</span></button>
+      <button class="tab" data-panel="chat"><span data-i18n="askPDF">Ask</span></button>
     </div>
     <div class="panel on" id="p-summary"><div class="md" id="c-summary"></div></div>
     <div class="panel" id="p-keypoints"><div class="md" id="c-keypoints"></div></div>
     <div class="panel" id="p-flashcards">
       <p class="fc-hint-text" data-i18n="tapToFlip">Tap a card to reveal the answer</p>
       <div class="fc-grid" id="c-flashcards"></div>
+    </div>
+    <div class="panel" id="p-quiz">
+      <div id="c-quiz"></div>
+    </div>
+    <div class="panel" id="p-chat">
+      <div class="chat-container" id="c-chat"></div>
     </div>
   </div>
   <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
@@ -104,8 +132,12 @@
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
 import { initUI, renderI18n, initTabs, switchTab } from './js/ui-init.js';
-import { esc, md2html, fmtSize, parseFlashcards, renderFlashcards } from './js/app.js';
+import { esc, md2html, fmtSize, parseFlashcards, renderFlashcards, parseQuiz, renderQuiz, downloadBlob } from './js/app.js';
 import { injectControlBar } from './js/shared-ui.js';
+import { toast } from './js/toast.js';
+import { confirm } from './js/confirm.js';
+import { getSubjects } from './js/subjects.js';
+import { renderChat, sendChatMessage, getChatHistory, appendMessage, showTypingIndicator, removeTypingIndicator } from './js/chat.js';
 injectControlBar();
 
 let session, user;
@@ -114,13 +146,31 @@ try {
   session = sessResp.data?.session;
   const userResp = await sb.auth.getUser();
   user = userResp.data?.user;
-} catch {
+} catch (err) {
+  console.error('Auth check failed:', err);
   session = null;
   user = null;
 }
 if (!session) window.location.href = 'index.html';
 if (user) document.getElementById('user-email').textContent = user.email;
-document.getElementById('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  const ok = await confirm(t('logOut') + '?');
+  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
+});
+
+// Load subjects into dropdown
+async function loadSubjects() {
+  const subjects = await getSubjects();
+  const sel = document.getElementById('subject-select');
+  sel.innerHTML = `<option value="">${t('noSubject')}</option>`;
+  subjects.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
+}
+loadSubjects();
 
 // Theme, font size, language — shared init
 initUI(() => { renderI18n(); document.getElementById('submit-btn').textContent = t('analyzePDF'); document.title = t('appName') + ' — ' + t('uploadTitle'); });
@@ -130,7 +180,9 @@ document.title = t('appName') + ' — ' + t('uploadTitle');
 
 // State
 const $ = id => document.getElementById(id);
-let selFile = null, pollTimer = null, provider = 'claude', currentDocId = null;
+let selFile = null, pollTimer = null, provider = 'claude', currentDocId = null, startTime = null;
+let etaBuckets = []; // rolling window of {pct, elapsed} for smoothed ETA
+let customFilename = ''; // user-editable filename
 
 document.getElementById('btn-claude').addEventListener('click', () => { provider='claude'; updateProvUI(); });
 document.getElementById('btn-gemini').addEventListener('click', () => { provider='gemini'; updateProvUI(); });
@@ -145,15 +197,57 @@ const dz = $('drop-zone');
 dz.addEventListener('click', () => fileInput.click());
 dz.addEventListener('keydown', e => (e.key==='Enter'||e.key===' ') && fileInput.click());
 fileInput.addEventListener('change', () => fileInput.files[0] && setFile(fileInput.files[0]));
-$('rm-file').addEventListener('click', e => { e.stopPropagation(); selFile=null; fileInput.value=''; $('file-chip').classList.remove('show'); checkBtn(); });
+$('rm-file').addEventListener('click', async e => {
+  e.stopPropagation();
+  selFile=null; fileInput.value=''; $('file-chip').classList.remove('show'); checkBtn();
+});
 $('submit-btn').addEventListener('click', doUpload);
 
 function setFile(f) {
-  if (!f || !f.name.toLowerCase().endsWith('.pdf')) return alert(t('pleaseChoosePDF'));
-  if (f.size > 25*1024*1024) return alert(t('fileTooLarge'));
-  selFile = f; $('chip-name').textContent = f.name;
+  if (!f || !f.name.toLowerCase().endsWith('.pdf')) return toast(t('pleaseChoosePDF'), 'error');
+  if (f.size > 25*1024*1024) return toast(t('fileTooLarge'), 'error');
+  selFile = f;
+  customFilename = f.name;
+  renderChipName();
   $('chip-size').textContent = fmtSize(f.size);
   $('file-chip').classList.add('show'); checkBtn();
+}
+
+function renderChipName() {
+  const chipName = $('chip-name');
+  chipName.innerHTML = '';
+  const display = document.createElement('span');
+  display.className = 'fname-display';
+  display.textContent = customFilename;
+  display.title = 'Click to rename';
+  display.style.cursor = 'text';
+  display.addEventListener('click', startRename);
+  chipName.appendChild(display);
+}
+
+function startRename() {
+  const chipName = $('chip-name');
+  chipName.innerHTML = '';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = customFilename;
+  input.className = 'fname-input';
+  input.style.cssText = 'background:var(--bg);border:1px solid var(--gold);border-radius:var(--rs);padding:2px 6px;color:var(--text);font-family:var(--font-body);font-size:.88rem;width:100%;max-width:280px;outline:none;';
+  chipName.appendChild(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const v = input.value.trim();
+    if (v && v.length > 0) {
+      customFilename = v.endsWith('.pdf') ? v : v + '.pdf';
+    }
+    renderChipName();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { renderChipName(); }
+  });
 }
 
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
@@ -166,21 +260,67 @@ function hideErr() { $('err-box').classList.remove('show'); }
 async function doUpload() {
   if (!selFile) return;
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  const docId = crypto.randomUUID(); currentDocId = docId;
+  const docId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+  currentDocId = docId;
   const uid = user.id, pdfPath = `${uid}/${docId}.pdf`;
+  startTime = Date.now();
+  etaBuckets = [];
   hideErr(); $('upload-card').style.display='none'; $('results').classList.remove('show');
-  $('prog-section').classList.add('show'); $('prog-name').textContent = selFile.name;
+  $('prog-section').classList.add('show'); $('prog-name').textContent = customFilename || selFile.name;
   updateProgress(0, t('uploadingPDF'));
   try {
     const { error: upErr } = await sb.storage.from('pdfs').upload(pdfPath, selFile, { upsert: true });
     if (upErr) throw new Error(upErr.message);
     updateProgress(15, t('startingAI'));
-    const { error: fnErr } = await sb.functions.invoke('process-pdf', { body: { doc_id: docId, pdf_path: `pdfs/${pdfPath}`, provider } });
+    const language = document.getElementById('language-select').value || 'english';
+    const subjectId = document.getElementById('subject-select').value || null;
+    const { error: fnErr } = await sb.functions.invoke('process-pdf', { body: { doc_id: docId, pdf_path: `pdfs/${pdfPath}`, provider, custom_filename: customFilename, language } });
+    // Update subject_id after document is created
+    if (subjectId && !fnErr) {
+      await sb.from('documents').update({ subject_id: subjectId }).eq('id', docId);
+    }
     if (fnErr) throw new Error(fnErr.message);
     startPoll(docId, uid);
   } catch (err) { showErr(err.message); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
 }
-function updateProgress(pct, msg) { $('prog-pct').textContent = pct+'%'; $('bar').style.width = pct+'%'; $('prog-msg').textContent = msg; }
+function updateProgress(pct, msg) {
+  $('prog-pct').textContent = pct+'%';
+  $('bar').style.width = pct+'%';
+  let displayMsg = msg;
+
+  if (startTime && pct >= 35 && pct < 100) {
+    const elapsed = (Date.now() - startTime) / 1000;
+    etaBuckets.push({ pct, elapsed });
+    // Keep only last 5 readings for a rolling average
+    if (etaBuckets.length > 5) etaBuckets.shift();
+
+    // Use the oldest and newest bucket to compute rate (more stable)
+    const first = etaBuckets[0];
+    const last = etaBuckets[etaBuckets.length - 1];
+    const dpct = last.pct - first.pct;
+    const dtime = last.elapsed - first.elapsed;
+
+    if (dpct > 0 && dtime > 0) {
+      // Linear extrapolation from rolling rate
+      const rate = dpct / dtime; // % per second
+      const remainingPct = 100 - pct;
+      const etaSec = Math.round(remainingPct / rate);
+
+      if (etaSec > 0 && etaSec < 600) {
+        const etaStr = etaSec < 60
+          ? '~' + etaSec + 's left'
+          : '~' + Math.round(etaSec / 60) + ' min left';
+        displayMsg = msg + ' · ' + etaStr;
+      }
+    }
+  }
+  $('prog-msg').textContent = displayMsg;
+}
 
 function startPoll(docId, uid) {
   let failCount = 0;
@@ -192,7 +332,8 @@ function startPoll(docId, uid) {
       updateProgress(doc.progress, doc.progress_msg);
       if (doc.status === 'done') { clearInterval(pollTimer); showResults(doc, uid); }
       if (doc.status === 'error') { clearInterval(pollTimer); showErr(doc.error_msg || t('somethingWentWrong')); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
-    } catch {
+    } catch (pollErr) {
+      console.error('Poll failed:', pollErr);
       failCount++;
       if (failCount >= 3) {
         clearInterval(pollTimer);
@@ -211,54 +352,137 @@ async function showResults(doc, uid) {
   if (doc.page_count) st += `<div class="stat">${t('pages')}: <strong>${doc.page_count}</strong></div>`;
   if (doc.word_count) st += `<div class="stat">${t('words')}: <strong>${doc.word_count.toLocaleString()}</strong></div>`;
   if (doc.flashcard_count) st += `<div class="stat">${t('flashcards')}: <strong>${doc.flashcard_count}</strong></div>`;
+  if (doc.quiz_count) st += `<div class="stat">${t('quiz')}: <strong>${doc.quiz_count}</strong></div>`;
   $('stats').innerHTML = st;
   $('view-link').href = `view.html?id=${currentDocId}`;
 
   const prefix = `${uid}/${currentDocId}/`;
+  const baseName = doc.filename.replace(/\.pdf$/i, '');
   let downloadFailed = false;
+  // Track raw content for download buttons
+  let rawSummary = '', rawKeyPoints = '', rawFlashcards = '', rawQuiz = '';
   try {
-    const [sRes,kRes,fRes] = await Promise.all([
+    const [sRes,kRes,fRes,qRes] = await Promise.all([
       sb.storage.from('outputs').download(prefix+'summary.md'),
       sb.storage.from('outputs').download(prefix+'key_points.md'),
       sb.storage.from('outputs').download(prefix+'flashcards.md'),
+      sb.storage.from('outputs').download(prefix+'quiz.md'),
     ]);
 
     if (sRes.data) {
-      const tx = await sRes.data.text();
-      $('c-summary').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+      rawSummary = await sRes.data.text();
+      $('c-summary').innerHTML = md2html(rawSummary.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
     } else if (sRes.error) {
       console.error('Failed to load summary:', sRes.error);
       downloadFailed = true;
     }
     if (kRes.data) {
-      const tx = await kRes.data.text();
-      $('c-keypoints').innerHTML = md2html(tx.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+      rawKeyPoints = await kRes.data.text();
+      $('c-keypoints').innerHTML = md2html(rawKeyPoints.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
     } else if (kRes.error) {
       console.error('Failed to load key points:', kRes.error);
       downloadFailed = true;
     }
     if (fRes.data) {
-      const tx = await fRes.data.text();
-      const cards = parseFlashcards(tx);
+      rawFlashcards = await fRes.data.text();
+      const cards = parseFlashcards(rawFlashcards);
       renderFlashcards($('c-flashcards'), cards, t);
     } else if (fRes.error) {
       console.error('Failed to load flashcards:', fRes.error);
       downloadFailed = true;
     }
-  } catch {
+    if (qRes.data) {
+      rawQuiz = await qRes.data.text();
+      const quizQuestions = parseQuiz(rawQuiz);
+      renderQuiz($('c-quiz'), quizQuestions, t);
+    } else if (qRes.error) {
+      // Quiz is optional, don't mark as failed
+      console.log('No quiz available');
+    }
+  } catch (downErr) {
     downloadFailed = true;
-    console.error('Failed to download output files');
+    console.error('Failed to download output files:', downErr);
   }
+
+  // Add download buttons to each panel
+  addDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz, baseName);
+
+  // Initialize chat
+  initChat(currentDocId);
+
   if (downloadFailed) {
-    showErr(t('networkError'));
+    toast(t('networkError'), 'error');
   }
   $('results').classList.add('show'); $('results').scrollIntoView({ behavior:'smooth',block:'start' });
+}
+
+function addDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz, baseName) {
+  const tabs = [
+    { panel: 'summary', content: rawSummary, suffix: '_summary.md' },
+    { panel: 'keypoints', content: rawKeyPoints, suffix: '_key_points.md' },
+    { panel: 'flashcards', content: rawFlashcards, suffix: '_flashcards.md' },
+    { panel: 'quiz', content: rawQuiz, suffix: '_quiz.md' },
+  ];
+  tabs.forEach(({ panel, content, suffix }) => {
+    const el = document.getElementById('p-' + panel);
+    if (!el) return;
+    const existing = el.querySelector('.panel-download');
+    if (existing) existing.remove();
+    const wrapper = document.createElement('div');
+    wrapper.className = 'panel-download';
+    wrapper.innerHTML = '<button class="btn btn-ghost btn-xs dl-tab-btn">Download .md</button>';
+    wrapper.querySelector('.dl-tab-btn').addEventListener('click', () => {
+      if (content) downloadBlob(content, baseName + suffix);
+    });
+    el.insertBefore(wrapper, el.firstChild);
+  });
+
+  // Download All button
+  const resActions = document.querySelector('#results .res-actions');
+  if (resActions && !resActions.querySelector('.dl-all-btn')) {
+    const dlAll = document.createElement('button');
+    dlAll.className = 'btn btn-accent btn-sm dl-all-btn';
+    dlAll.textContent = 'Download All';
+    dlAll.addEventListener('click', () => {
+      if (rawSummary) { downloadBlob(rawSummary, baseName + '_summary.md'); }
+      setTimeout(() => { if (rawKeyPoints) downloadBlob(rawKeyPoints, baseName + '_key_points.md'); }, 300);
+      setTimeout(() => { if (rawFlashcards) downloadBlob(rawFlashcards, baseName + '_flashcards.md'); }, 600);
+      setTimeout(() => { if (rawQuiz) downloadBlob(rawQuiz, baseName + '_quiz.md'); }, 900);
+    });
+    resActions.appendChild(dlAll);
+  }
 }
 
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => switchTab(tab));
 });
 initTabs();
+
+// Chat initialization
+async function initChat(docId) {
+  const container = $('c-chat');
+  const history = await getChatHistory(docId);
+  renderChat(container, history, async (msg) => {
+    appendMessage(container, 'user', msg);
+    const typingEl = showTypingIndicator(container);
+    const sendBtn = container.querySelector('.chat-send-btn');
+    const input = container.querySelector('.chat-input');
+    if (sendBtn) sendBtn.disabled = true;
+    if (input) input.disabled = true;
+
+    const { data, error } = await sendChatMessage(docId, msg);
+    removeTypingIndicator(container);
+
+    if (error) {
+      appendMessage(container, 'assistant', 'Sorry, something went wrong. Please try again.');
+    } else {
+      appendMessage(container, 'assistant', data?.response || 'No response received.');
+    }
+
+    if (sendBtn) sendBtn.disabled = false;
+    if (input) { input.disabled = false; input.focus(); }
+  });
+}
 </script>
 </body>
 </html>
