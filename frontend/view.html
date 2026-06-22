@@ -3,45 +3,49 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script>
+  // Prevent flash of wrong theme — must run before first paint
+  (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
+</script>
 <title>Smart PDF Summarizer — View Document</title>
 <meta name="description" content="View AI-generated study notes, key points, and flashcards."/>
-<link rel="stylesheet" href="css/style.css"/>
+<link rel="stylesheet" href="css/style.css?v=2"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
 </head>
 <body>
-<div class="control-bar">
-  <button class="toggle-pill font-size-btn" id="font-size-btn" aria-label="Adjust font size" title="Font size"></button>
-  <button class="toggle-pill" id="theme-toggle" aria-label="Toggle theme">
-    <svg id="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <svg id="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-  </button>
-  <button class="toggle-pill" id="lang-toggle"></button>
-</div>
+<div class="control-bar" id="control-bar-target"></div>
 
 <div class="wrap">
   <div class="top-bar">
-    <a href="library.html" class="btn btn-ghost" style="padding:8px 14px;font-size:.82rem">
+    <a href="library.html" class="btn btn-ghost btn-sm">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
       <span data-i18n="backToLibrary">Back to Library</span>
     </a>
     <div class="user-info">
       <span class="user-email" id="user-email"></span>
-      <button class="btn btn-danger" style="padding:6px 14px;font-size:.78rem" id="logout-btn" data-i18n="logOut">Log out</button>
+      <button class="btn btn-danger btn-xs" id="logout-btn" data-i18n="logOut">Log out</button>
     </div>
   </div>
 
-  <div class="card" id="loading-state" style="text-align:center;padding:40px;color:var(--muted)">
-    <div class="spinner" style="margin:0 auto 10px"></div><span data-i18n="loading">Loading…</span>
+  <div id="loading-state">
+    <div class="skeleton-card">
+      <div class="skeleton skeleton-line w-60 title"></div>
+      <div class="res-actions skeleton-pills"><div class="skeleton skeleton-pill"></div><div class="skeleton skeleton-pill"></div><div class="skeleton skeleton-pill"></div></div>
+      <div class="skeleton skeleton-line w-80"></div>
+      <div class="skeleton skeleton-line w-60"></div>
+      <div class="skeleton skeleton-line w-80"></div>
+      <div class="skeleton skeleton-line w-40"></div>
+    </div>
   </div>
 
-  <div id="err-box"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
+  <div id="err-box" role="alert" aria-live="polite"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
 
-  <div id="results" style="display:none">
+  <div id="results">
     <div class="res-head">
       <div class="res-title"><div class="dot-ok"></div><span id="view-filename">Document</span><span class="provider-badge" id="result-badge">Claude</span></div>
-      <a href="upload.html" class="btn btn-accent" style="padding:8px 16px;font-size:.84rem" data-i18n="newPDF">New PDF</a>
+      <a href="upload.html" class="btn btn-accent btn-sm" data-i18n="newPDF">New PDF</a>
     </div>
     <div class="stats" id="stats"></div>
     <div class="tabs">
@@ -52,7 +56,7 @@
     <div class="panel on" id="p-summary"><div class="md" id="c-summary"></div></div>
     <div class="panel" id="p-keypoints"><div class="md" id="c-keypoints"></div></div>
     <div class="panel" id="p-flashcards">
-      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;font-style:italic" data-i18n="tapToFlip">Tap a card to reveal the answer</p>
+      <p class="fc-hint-text" data-i18n="tapToFlip">Tap a card to reveal the answer</p>
       <div class="fc-grid" id="c-flashcards"></div>
     </div>
   </div>
@@ -61,9 +65,11 @@
 
 <script type="module">
 import { sb } from './js/supabase-client.js';
-import { t, getLang, setLang } from './js/i18n.js';
-import { initUI, renderI18n } from './js/ui-init.js';
-import { esc, md2html, fmtDate, parseFlashcards } from './js/app.js';
+import { t } from './js/i18n.js';
+import { initUI, renderI18n, initTabs, switchTab } from './js/ui-init.js';
+import { esc, md2html, fmtDate, parseFlashcards, renderFlashcards } from './js/app.js';
+import { injectControlBar } from './js/shared-ui.js';
+injectControlBar();
 
 let session, user;
 try {
@@ -97,7 +103,7 @@ if (error || !doc) { showErr(t('documentNotFound')); }
 else if (doc.status === 'error') { showErr(doc.error_msg || t('somethingWentWrong')); }
 else if (doc.status !== 'done') { showErr(t('stillProcessing')); }
 else {
-  resultsEl.style.display='block';
+  resultsEl.classList.add('show');
   document.getElementById('view-filename').textContent = doc.filename;
   document.getElementById('result-badge').textContent = doc.provider==='gemini'?'Gemini':'Claude';
 
@@ -123,8 +129,7 @@ else {
     if (fRes.data) {
       const tx = await fRes.data.text();
       const cards = parseFlashcards(tx);
-      const hint=t('clickToFlip'), lbl=t('card');
-      document.getElementById('c-flashcards').innerHTML = cards.map((fc,i)=>`<div class="fc" onclick="this.classList.toggle('flip')"><div class="lbl">${lbl} ${i+1}</div><div class="q">${esc(fc.q)}</div><div class="a">${esc(fc.a)}</div><div class="fc-hint">${hint}</div></div>`).join('');
+      renderFlashcards(document.getElementById('c-flashcards'), cards, t);
     } else if (fRes.error) { console.error('Failed to load flashcards:', fRes.error); downloadFailed = true; }
   } catch {
     downloadFailed = true;
@@ -133,12 +138,9 @@ else {
   if (downloadFailed) { showErr(t('networkError')); }
 }
 document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
-    tab.classList.add('on'); document.getElementById('p-'+tab.dataset.panel).classList.add('on');
-  });
+  tab.addEventListener('click', () => switchTab(tab));
 });
+initTabs();
 </script>
 </body>
 </html>

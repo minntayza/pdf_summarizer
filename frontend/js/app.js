@@ -43,25 +43,6 @@ export function md2html(md) {
   return s;
 }
 
-// ── Toast notification ───────────────────────────────────
-export function toast(msg, type = 'success') {
-  let container = document.querySelector('.toast-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.className = 'toast-container';
-    document.body.appendChild(container);
-  }
-  const el = document.createElement('div');
-  el.className = 'toast ' + type;
-  el.textContent = msg;
-  container.appendChild(el);
-  setTimeout(() => {
-    el.style.opacity = '0';
-    el.style.transition = 'opacity .3s';
-    setTimeout(() => el.remove(), 300);
-  }, 4000);
-}
-
 // ── Format date ──────────────────────────────────────────
 export function fmtDate(isoStr) {
   if (!isoStr) return '';
@@ -81,4 +62,23 @@ export function parseFlashcards(mdText) {
     else if (am && cur) { cur.a = am[1]; cards.push(cur); cur = null; }
   }
   return cards;
+}
+
+// ── Render flashcards with keyboard accessibility ────────
+export function renderFlashcards(container, cards, tFn) {
+  const hint = tFn('clickToFlip'), lbl = tFn('card'), ansLabel = tFn('answerLabel');
+  container.innerHTML = '';
+  cards.forEach((fc, i) => {
+    const div = document.createElement('div');
+    div.className = 'fc';
+    div.tabIndex = 0;
+    div.setAttribute('role', 'button');
+    div.setAttribute('aria-label', `${lbl} ${i+1}: ${fc.q}`);
+    div.innerHTML = `<div class="fc-inner"><div class="fc-front"><div class="lbl">${lbl} ${i+1}</div><div class="q">${esc(fc.q)}</div><div class="fc-hint">${hint}</div></div><div class="fc-back"><div class="lbl">${ansLabel}</div><div class="a">${esc(fc.a)}</div><div class="fc-hint">${hint}</div></div></div>`;
+    div.addEventListener('click', () => div.classList.toggle('flipped'));
+    div.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); div.classList.toggle('flipped'); }
+    });
+    container.appendChild(div);
+  });
 }
