@@ -1,5 +1,6 @@
 // chat.js — Chat with PDF UI logic
 import { sb } from './supabase-client.js';
+import { esc } from './app.js';
 
 export async function getChatHistory(documentId) {
   const { data, error } = await sb
@@ -61,7 +62,7 @@ export function renderChat(container, messages, onSend) {
   messages.forEach(msg => {
     const div = document.createElement('div');
     div.className = `chat-msg chat-${msg.role}`;
-    div.innerHTML = `<div class="chat-bubble">${escapeHtml(msg.content)}</div>`;
+    div.innerHTML = `<div class="chat-bubble">${esc(msg.content).replace(/\n/g, '<br/>')}</div>`;
     msgArea.appendChild(div);
   });
 
@@ -106,7 +107,7 @@ export function appendMessage(container, role, content) {
 
   const div = document.createElement('div');
   div.className = `chat-msg chat-${role}`;
-  div.innerHTML = `<div class="chat-bubble">${escapeHtml(content)}</div>`;
+  div.innerHTML = `<div class="chat-bubble">${esc(content).replace(/\n/g, '<br/>')}</div>`;
   msgArea.appendChild(div);
   msgArea.scrollTop = msgArea.scrollHeight;
   return div;
@@ -126,13 +127,4 @@ export function showTypingIndicator(container) {
 export function removeTypingIndicator(container) {
   const el = container.querySelector('.chat-typing-indicator');
   if (el) el.remove();
-}
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br/>');
 }

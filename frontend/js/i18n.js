@@ -377,10 +377,3 @@ export function setLang(lang) {
   currentLang = lang;
   localStorage.setItem('lang', lang);
 }
-
-export function tAll() {
-  return TRANSLATIONS[currentLang] || TRANSLATIONS.en;
-}
-
-// Attach to window for use in inline HTML (onclick handlers etc)
-window.__t = function(key) { return t(key); };
