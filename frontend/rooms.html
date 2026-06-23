@@ -46,10 +46,10 @@
   <!-- Create room modal -->
   <div class="card" id="create-form" style="display:none">
     <h3 data-i18n="createRoom" style="margin-bottom:14px;font-family:var(--font-heading)">Create Room</h3>
-    <div style="display:flex;gap:10px;align-items:flex-end">
-      <div style="flex:1">
+    <div class="form-row-center">
+      <div class="form-flex-1">
         <label class="provider-label" data-i18n="roomName">Room Name</label>
-        <input type="text" id="room-name-input" placeholder="e.g. CS301 Study Group" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;"/>
+        <input type="text" id="room-name-input" placeholder="e.g. CS301 Study Group" class="form-input"/>
       </div>
       <button class="btn btn-accent" id="confirm-create-btn">Create</button>
       <button class="btn btn-ghost" id="cancel-create-btn">Cancel</button>
@@ -59,10 +59,10 @@
   <!-- Join room modal -->
   <div class="card" id="join-form" style="display:none">
     <h3 data-i18n="joinRoom" style="margin-bottom:14px;font-family:var(--font-heading)">Join Room</h3>
-    <div style="display:flex;gap:10px;align-items:flex-end">
-      <div style="flex:1">
+    <div class="form-row-center">
+      <div class="form-flex-1">
         <label class="provider-label" data-i18n="inviteCode">Invite Code</label>
-        <input type="text" id="invite-code-input" placeholder="Enter invite code" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;"/>
+        <input type="text" id="invite-code-input" placeholder="Enter invite code" class="form-input"/>
       </div>
       <button class="btn btn-accent" id="confirm-join-btn">Join</button>
       <button class="btn btn-ghost" id="cancel-join-btn">Cancel</button>
