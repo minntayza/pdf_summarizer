@@ -49,27 +49,15 @@
 <script type="module">
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
-import { initUI, renderI18n } from './js/ui-init.js';
-import { injectControlBar } from './js/shared-ui.js';
-injectControlBar();
+import { renderI18n } from './js/ui-init.js';
+import { initPage } from './js/page-init.js';
 
-let session;
-try {
-  const sessResp = await sb.auth.getSession();
-  session = sessResp.data?.session;
-} catch (err) {
-  console.error('Auth check failed:', err);
-  session = null;
-}
-if (session) window.location.href = 'upload.html';
-
-// Theme, font size, language — shared init
 function renderAll() {
   renderI18n();
   document.getElementById('submit-btn').textContent = t('logIn');
   document.title = t('appName') + ' — ' + t('loginTitle');
 }
-initUI(renderAll);
+await initPage({ requireAuth: false, onLangChange: renderAll });
 renderAll();
 
 // Login
