@@ -72,30 +72,14 @@
 <script type="module">
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
-import { initUI, renderI18n } from './js/ui-init.js';
+import { renderI18n } from './js/ui-init.js';
 import { esc } from './js/app.js';
-import { injectControlBar } from './js/shared-ui.js';
 import { toast } from './js/toast.js';
 import { confirm } from './js/confirm.js';
 import { getSubjects, createSubject, updateSubject, deleteSubject } from './js/subjects.js';
-injectControlBar();
+import { initPage } from './js/page-init.js';
 
-let session, user;
-try {
-  const sessResp = await sb.auth.getSession();
-  session = sessResp.data?.session;
-  const userResp = await sb.auth.getUser();
-  user = userResp.data?.user;
-} catch (err) { session = null; user = null; }
-if (!session) window.location.href = 'index.html';
-if (user) document.getElementById('user-email').textContent = user.email;
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  const ok = await confirm(t('logOut') + '?');
-  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
-});
-
-initUI(() => { renderI18n(); document.title = t('appName') + ' — ' + t('manageSubjects'); });
-renderI18n();
+await initPage({ onLangChange: () => { renderI18n(); document.title = t('appName') + ' — ' + t('manageSubjects'); } });
 document.title = t('appName') + ' — ' + t('manageSubjects');
 
 let selectedColor = '#6366f1';
@@ -143,9 +127,9 @@ async function loadSubjects() {
 
   subjects.forEach(s => {
     const row = document.createElement('div');
-    row.className = 'subject-row';
+    row.style.setProperty('--row-color', s.color);
     row.innerHTML = `
-      <span class="subject-dot" style="background:${s.color};width:12px;height:12px;border-radius:50%;flex-shrink:0"></span>
+      <span class="subject-dot" style="background:var(--row-color);width:14px;height:14px;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px var(--row-color)"></span>
       <span class="subject-name">${esc(s.name)}</span>
       <div class="subject-actions">
         <button class="btn btn-ghost btn-xs edit-btn">Edit</button>

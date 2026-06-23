@@ -62,30 +62,15 @@
 <script type="module">
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
-import { initUI, renderI18n } from './js/ui-init.js';
+import { renderI18n } from './js/ui-init.js';
 import { esc, fmtDate, renderDocList } from './js/app.js';
-import { injectControlBar } from './js/shared-ui.js';
 import { toast } from './js/toast.js';
 import { confirm } from './js/confirm.js';
 import { getSubjects } from './js/subjects.js';
-injectControlBar();
+import { initPage } from './js/page-init.js';
 
-let session, user;
-try {
-  const sessResp = await sb.auth.getSession();
-  session = sessResp.data?.session;
-  const userResp = await sb.auth.getUser();
-  user = userResp.data?.user;
-} catch (err) {
-  console.error('Auth check failed:', err);
-  session = null;
-  user = null;
-}
-if (!session) { window.location.href = 'index.html'; }
-if (user) document.getElementById('user-email').textContent = user.email;
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  const ok = await confirm(t('logOut') + '?');
-  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
+await initPage({
+  onLangChange: () => { renderI18n(); loadDocs(); document.title = t('appName') + ' — ' + t('libraryTitle'); }
 });
 
 const listEl = document.getElementById('doc-list'), loadingEl = document.getElementById('loading-state'), emptyEl = document.getElementById('empty-state');
@@ -114,6 +99,7 @@ function renderSubjectFilter() {
   subjects.forEach(s => {
     const pill = document.createElement('button');
     pill.className = 'subject-pill' + (activeSubjectId === s.id ? ' active' : '');
+    pill.style.setProperty('--pill-color', s.color);
     pill.innerHTML = `<span class="subject-dot" style="background:${s.color}"></span> ${esc(s.name)}`;
     pill.addEventListener('click', () => { activeSubjectId = s.id; renderSubjectFilter(); filterDocs(); });
     filterEl.appendChild(pill);
@@ -136,20 +122,13 @@ async function deleteDoc(doc, docEl) {
   docEl.style.opacity = '0.4';
   docEl.style.pointerEvents = 'none';
 
+  // Storage cleanup is best-effort — do not block DB delete
+  const prefix = doc.user_id + '/' + doc.id + '/';
+  try { await sb.storage.from('outputs').remove([prefix+'summary.md',prefix+'key_points.md',prefix+'flashcards.md',prefix+'quiz.md']); } catch (e) { console.warn('Storage outputs cleanup:', e); }
+  const pdfPath = doc.pdf_path ? doc.pdf_path.replace('pdfs/', '') : doc.user_id + '/' + doc.id + '.pdf';
+  try { await sb.storage.from('pdfs').remove([pdfPath]); } catch (e) { console.warn('Storage pdf cleanup:', e); }
+
   try {
-    // Delete output files from storage (summary, key points, flashcards, quiz)
-    const prefix = doc.user_id + '/' + doc.id + '/';
-    await sb.storage.from('outputs').remove([
-      prefix + 'summary.md',
-      prefix + 'key_points.md',
-      prefix + 'flashcards.md',
-      prefix + 'quiz.md',
-    ]);
-
-    // Delete uploaded PDF from storage
-    const pdfPath = doc.pdf_path ? doc.pdf_path.replace('pdfs/', '') : doc.user_id + '/' + doc.id + '.pdf';
-    await sb.storage.from('pdfs').remove([pdfPath]);
-
     // Delete document row from database
     const { error } = await sb.from('documents').delete().eq('id', doc.id);
     if (error) throw error;
@@ -160,7 +139,6 @@ async function deleteDoc(doc, docEl) {
     docEl.style.opacity = '0';
     setTimeout(() => {
       docEl.remove();
-      // Show empty state if no docs left
       if (listEl.children.length === 0) {
         emptyEl.hidden = false;
       }
@@ -174,7 +152,6 @@ async function deleteDoc(doc, docEl) {
     toast('Failed to delete. Try again.', 'error');
   }
 }
-
 function startDocRename(nameEl, doc) {
   const original = nameEl.textContent;
   const input = document.createElement('input');
@@ -254,7 +231,7 @@ function renderDocs(docs) {
       <div class="doc-info"><span class="doc-name" data-doc-id="${doc.id}" title="Click to rename">${esc(doc.filename)}</span><div class="doc-meta">${meta||fmtDate(doc.created_at)} ${subjectBadge}</div></div>
       <div class="doc-status ${cls}">${label}</div>
       ${proc?'<div class="spinner"></div>':''}
-      <button class="doc-delete-btn" title="Delete" aria-label="Delete ${esc(doc.filename)}">
+      <button class="doc-delete-btn" data-doc-id="${doc.id}" title="Delete" aria-label="Delete ${esc(doc.filename)}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
       </button>`;
       return { html, doc, done };
@@ -264,55 +241,27 @@ function renderDocs(docs) {
       if (done) window.location.href = 'view.html?id=' + doc.id;
     });
 
-  // Wire up delete buttons
+  // Wire up delete buttons (use data-doc-id to avoid stale DOM-index bugs)
   listEl.querySelectorAll('.doc-delete-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       e.preventDefault();
-      const docItem = btn.closest('.doc-item');
-      const idx = [...listEl.children].indexOf(docItem);
-      if (idx >= 0 && idx < docs.length) deleteDoc(docs[idx], docItem);
+      const docId = btn.dataset.docId;
+      const doc = allDocs.find(d => d.id === docId);
+      if (doc) deleteDoc(doc, btn.closest('.doc-item'));
     });
   });
 
-  // Wire up rename on doc-name click
+  // Wire up rename on doc-name click (use data-doc-id to avoid stale DOM-index bugs)
   listEl.querySelectorAll('.doc-name').forEach(nameEl => {
     nameEl.addEventListener('click', e => {
       e.stopPropagation();
       e.preventDefault();
-      const docItem = nameEl.closest('.doc-item');
-      const idx = [...listEl.children].indexOf(docItem);
-      if (idx >= 0 && idx < docs.length) startDocRename(nameEl, docs[idx]);
+      const docId = nameEl.dataset.docId;
+      const doc = allDocs.find(d => d.id === docId);
+      if (doc) startDocRename(nameEl, doc);
     });
   });
-}
-
-    // Wire up delete buttons
-    listEl.querySelectorAll('.doc-delete-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        e.preventDefault();
-        const docItem = btn.closest('.doc-item');
-        const idx = [...listEl.children].indexOf(docItem);
-        if (idx >= 0 && idx < currentDocs.length) deleteDoc(currentDocs[idx], docItem);
-      });
-    });
-
-    // Wire up rename on doc-name click
-    listEl.querySelectorAll('.doc-name').forEach(nameEl => {
-      nameEl.addEventListener('click', e => {
-        e.stopPropagation();
-        e.preventDefault();
-        const docItem = nameEl.closest('.doc-item');
-        const idx = [...listEl.children].indexOf(docItem);
-        if (idx >= 0 && idx < currentDocs.length) startDocRename(nameEl, currentDocs[idx]);
-      });
-    });
-  } catch (err) {
-    console.error('Failed to load documents:', err);
-    toast(t('networkError'), 'error');
-    loadingEl.style.display = 'none';
-  }
 }
 
 function showErr(msg) {
@@ -325,8 +274,6 @@ function showErr(msg) {
   }
 }
 
-initUI(() => { renderI18n(); loadDocs(); document.title = t('appName') + ' — ' + t('libraryTitle'); });
-renderI18n();
 document.title = t('appName') + ' — ' + t('libraryTitle');
 
 await loadDocs();

@@ -41,30 +41,13 @@
 <script type="module">
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
-import { initUI, renderI18n } from './js/ui-init.js';
+import { renderI18n } from './js/ui-init.js';
 import { esc, parseFlashcards } from './js/app.js';
-import { injectControlBar } from './js/shared-ui.js';
 import { toast } from './js/toast.js';
-import { confirm } from './js/confirm.js';
 import { getDueCards, recordReview, getAllReviews } from './js/srs.js';
-injectControlBar();
+import { initPage } from './js/page-init.js';
 
-let session, user;
-try {
-  const sessResp = await sb.auth.getSession();
-  session = sessResp.data?.session;
-  const userResp = await sb.auth.getUser();
-  user = userResp.data?.user;
-} catch (err) { session = null; user = null; }
-if (!session) window.location.href = 'index.html';
-if (user) document.getElementById('user-email').textContent = user.email;
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  const ok = await confirm(t('logOut') + '?');
-  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
-});
-
-initUI(() => { renderI18n(); document.title = t('appName') + ' — ' + t('review'); });
-renderI18n();
+await initPage({ onLangChange: () => { renderI18n(); document.title = t('appName') + ' — ' + t('review'); } });
 document.title = t('appName') + ' — ' + t('review');
 
 const docId = new URLSearchParams(window.location.search).get('id');

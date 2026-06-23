@@ -74,38 +74,17 @@
 <script type="module">
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
-import { initUI, renderI18n, initTabs, switchTab } from './js/ui-init.js';
+import { renderI18n, initTabs, switchTab } from './js/ui-init.js';
 import { esc, md2html, fmtDate, parseFlashcards, renderFlashcards, parseQuiz, renderQuiz, downloadBlob } from './js/app.js';
-import { injectControlBar } from './js/shared-ui.js';
 import { toast } from './js/toast.js';
-import { confirm } from './js/confirm.js';
 import { renderChat, sendChatMessage, getChatHistory, appendMessage, showTypingIndicator, removeTypingIndicator } from './js/chat.js';
-injectControlBar();
+import { initPage } from './js/page-init.js';
 
-let session, user;
-try {
-  const sessResp = await sb.auth.getSession();
-  session = sessResp.data?.session;
-  const userResp = await sb.auth.getUser();
-  user = userResp.data?.user;
-} catch (err) {
-  console.error('Auth check failed:', err);
-  session = null;
-  user = null;
-}
-if (!session) window.location.href = 'index.html';
-if (user) document.getElementById('user-email').textContent = user.email;
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  const ok = await confirm(t('logOut') + '?');
-  if (ok) { await sb.auth.signOut(); window.location.href = 'index.html'; }
-});
+await initPage({ onLangChange: () => { renderI18n(); document.title = t('appName'); } });
 
 const docId = new URLSearchParams(window.location.search).get('id');
 if (!docId) { window.location.href = 'library.html'; }
 
-// Theme, font size, language — shared init
-initUI(() => { renderI18n(); document.title = t('appName'); });
-renderI18n();
 document.title = t('appName');
 
 function showErr(msg) { document.getElementById('err-box').classList.add('show'); document.getElementById('err-text').textContent = msg; }
