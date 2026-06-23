@@ -55,23 +55,34 @@ async function callClaude(text: string, language: string = "english"): Promise<L
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("Claude API key not configured");
 
-  const baseUrl = Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1";
+  const rawBase = Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com";
+  // Strip trailing /v1 if present — we append /v1/messages below
+  const baseUrl = rawBase.replace(/\/v1\/?$/, "");
   const model = Deno.env.get("CLAUDE_MODEL") || "mimo-v2.5-pro";
 
-  const resp = await fetch(`${baseUrl}/v1/messages`, {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 8192,
-      system: getSystemPrompt(language),
-      messages: [{ role: "user", content: buildUserPrompt(text, language) }],
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 240_000); // 4 min per call
+
+  let resp: Response;
+  try {
+    resp = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 6144,
+        system: getSystemPrompt(language),
+        messages: [{ role: "user", content: buildUserPrompt(text, language) }],
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
@@ -95,18 +106,27 @@ async function callGemini(text: string, language: string = "english"): Promise<L
 
   const model = Deno.env.get("GEMINI_MODEL") || "gemini-1.5-flash";
 
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: getSystemPrompt(language) }] },
-        contents: [{ parts: [{ text: buildUserPrompt(text, language) }] }],
-        generationConfig: { maxOutputTokens: 8192 },
-      }),
-    },
-  );
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 240_000); // 4 min per call
+
+  let resp: Response;
+  try {
+    resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: getSystemPrompt(language) }] },
+          contents: [{ parts: [{ text: buildUserPrompt(text, language) }] }],
+          generationConfig: { maxOutputTokens: 6144 },
+        }),
+        signal: controller.signal,
+      },
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
@@ -243,8 +263,8 @@ async function processPDF(
       .eq("user_id", userId);
   };
 
-  // Safety timeout: mark document as error if processing exceeds 4 minutes
-  const PROCESSING_TIMEOUT_MS = 240_000;
+  // Safety timeout: mark document as error if processing exceeds 10 minutes
+  const PROCESSING_TIMEOUT_MS = 600_000;
   const timeoutId = setTimeout(async () => {
     await update({
       status: "error",
@@ -515,22 +535,22 @@ Deno.serve(async (req: Request) => {
       return corsResponse({ error: `Database error: ${insertErr.message}` }, 500);
     }
 
-    // Process the PDF synchronously — the frontend polls the documents table
-    // for progress, so we don't need a background task. Awaiting directly avoids
-    // reliance on EdgeRuntime.waitUntil which may not be available in all runtimes.
+    // Return immediately — the frontend polls /status/:doc_id for progress.
+    // Processing runs in the background via EdgeRuntime.waitUntil so it
+    // continues even after the response is sent.
     const normalizedPath = pdf_path.startsWith("pdfs/") ? pdf_path : `pdfs/${pdf_path}`;
 
-    try {
-      await processPDF(supabaseService, doc_id, userId, normalizedPath, aiProvider, aiLanguage);
-    } catch (err) {
-      console.error("processPDF failed:", err);
-    }
+    // Fire-and-forget background processing
+    EdgeRuntime.waitUntil(
+      processPDF(supabaseService, doc_id, userId, normalizedPath, aiProvider, aiLanguage)
+        .catch(err => console.error("processPDF failed:", err)),
+    );
 
     return corsResponse(
       {
         doc_id,
         status: "processing",
-        message: "PDF processing completed. Poll /status/" + doc_id + " for results.",
+        message: "PDF processing started. Poll /status/" + doc_id + " for progress.",
       },
       202,
     );

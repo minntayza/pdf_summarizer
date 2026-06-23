@@ -260,13 +260,20 @@ async function doUpload() {
     updateProgress(15, t('startingAI'));
     const language = document.getElementById('language-select').value || 'english';
     const subjectId = document.getElementById('subject-select').value || null;
+    // Start polling immediately so the user sees real-time progress
+    // while the Edge Function processes in the background
+    startPoll(docId, uid);
+
     const { error: fnErr } = await sb.functions.invoke('process-pdf', { body: { doc_id: docId, pdf_path: `pdfs/${pdfPath}`, provider, custom_filename: customFilename, language } });
     // Update subject_id after document is created
     if (subjectId && !fnErr) {
       await sb.from('documents').update({ subject_id: subjectId }).eq('id', docId);
     }
-    if (fnErr) throw new Error(fnErr.message);
-    startPoll(docId, uid);
+    if (fnErr) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      throw new Error(fnErr.message);
+    }
   } catch (err) { showErr(err.message); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
 }
 function updateProgress(pct, msg) {
