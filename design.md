@@ -292,7 +292,22 @@ The prompt templates and output validation from Phase 1 are ported directly to T
 | Embedded fonts / Unicode | ⚠️ Some symbols may be garbled | Edge Function logs the first 500 chars for debugging |
 | PDFs with forms/annotations | ⚠️ May miss annotation text | Accept as limitation |
 
-**Fallback plan:** If real-world testing shows pdf-parse is inadequate on your lecture PDFs, Phase 2.1 can add a small Python microservice (Flask endpoint wrapping PyMuPDF) that the Edge Function calls for text extraction. No architecture changes needed — just swap the extraction call. For now, proceed with pdf-parse and test with your actual lecture files.
+**Vision mode: AI sees the full PDF including images and diagrams.** The pipeline is:
+1. `pdf-parse` extracts text from the PDF → used for metadata (page count, word count) and supplementary context
+2. The full PDF is base64-encoded and sent to the AI API (Claude via `@anthropic-ai/sdk` or Gemini via inlineData) as a document attachment
+3. The AI receives both the rendered PDF (with all text, figures, charts, tables, diagrams visible) AND the extracted text as supplementary context
+4. Both Claude and Gemini support native PDF attachments — no page rendering needed
+
+**What this means in practice:**
+
+| PDF Type | Result | Why |
+|----------|--------|-----|
+| Text-heavy lectures (law, history, business, language) | ✅ Excellent summary | AI reads full text + any formatting |
+| Mixed text + diagrams (biology slides, economics charts, chemistry) | ✅ Good summary | AI sees the actual diagrams and can interpret them |
+| Engineering schematics, medical diagrams | ✅ Usable | AI can see and interpret visual content |
+| Scanned/image PDFs (photo of a whiteboard, scanned book pages) | ❌ No output | `pdf-parse` returns empty text → `NoTextExtractedError` (vision cannot help if `pdf-parse` fails extraction — the text check gates processing) |
+
+**Fallback plan:** If real-world testing shows pdf-parse is inadequate on your lecture PDFs, Phase 2.1 can add a small Python microservice (Flask endpoint wrapping PyMuPDF) that the Edge Function calls for text extraction. No architecture changes needed — just swap the extraction call.
 
 ## 3. Output Format (Unchanged from Phase 1)
 
@@ -368,7 +383,8 @@ smart_pdf_lecture_summarizer/
 **Edge Function (Deno):**
 - `pdf-parse` (npm) — PDF text extraction
 - `@supabase/supabase-js` — Supabase client (Storage + DB)
-- `@anthropic-ai/sdk` or `fetch` — Claude/Gemini API calls
+- `@anthropic-ai/sdk` (npm) — Claude API calls (with native PDF document support)
+- `fetch` — Gemini API calls (PDF inlineData)
 
 **Frontend (CDN, no build step):**
 - Supabase JS SDK (`@supabase/supabase-js` via CDN / esm.sh)

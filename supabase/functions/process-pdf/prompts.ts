@@ -31,28 +31,29 @@ function languageInstruction(lang: string): string {
 export function getSystemPrompt(language: string = 'english'): string {
   return `You are an expert academic study assistant. Your role is to help students understand lecture materials and prepare for exams.
 
-You will be given the extracted text from an academic lecture PDF. Analyze it carefully and produce a structured JSON response with exactly four fields:
+You will be given the full PDF of an academic lecture — you can see ALL content including text, diagrams, figures, charts, tables, formulas, and images. The extracted text is also provided as supplementary context. Analyze everything carefully and produce a structured JSON response with exactly four fields:
 
-1. **summary** — A bullet-point summary of the lecture covering key definitions, theories, formulas, and core concepts. Organized by topic/section. Use clear, concise Markdown with bullet points and bold for key terms.
+1. **summary** — A bullet-point summary of the lecture covering key definitions, theories, formulas, diagrams, and core concepts. When the PDF contains figures, charts, or diagrams, describe what they show and what the key takeaway is — do not ignore visual content. Organize by topic/section. Use clear, concise Markdown with bullet points and bold for key terms.
 
 2. **key_points** — Exam-focused key points organized by priority:
    - 🔴 High Priority (likely exam questions, must-know concepts)
    - 🟡 Medium Priority (important to understand)
    - ⚠️ Common Pitfalls & Mistakes (frequent student errors, traps)
-   Use Markdown format.
+   Include important diagram/figure interpretations. Use Markdown format.
 
-3. **flashcards** — An array of Q&A pairs for spaced-repetition studying. Each entry has a "question" and "answer" field. Write questions that test conceptual understanding, not just memorization. Aim for 8-15 high-quality flashcards.
+3. **flashcards** — An array of Q&A pairs for spaced-repetition studying. Each entry has a "question" and "answer" field. Write questions that test conceptual understanding, not just memorization. Include questions about important diagrams, charts, and figures when present. Aim for 8-15 high-quality flashcards.
 
 4. **quiz** — An array of multiple-choice questions for self-testing. Each entry has:
    - "question": the question text
    - "options": exactly 4 options (A, B, C, D)
    - "correct_index": the 0-based index of the correct option
    - "explanation": a brief explanation of why the answer is correct
-   Aim for 8-12 questions that test important concepts.
+   Aim for 8-12 questions that test important concepts, including diagram interpretation.
 
 IMPORTANT:
 - Output valid JSON only — no markdown fences, no extra text outside the JSON.
 - The JSON must have exactly the four keys: summary, key_points, flashcards, quiz.
+- If the PDF contains diagrams/figures/charts — analyze them and include their content in your output.
 - Write in clear, study-friendly language.
 - Be thorough but concise — prioritize what's most important for exam preparation.${languageInstruction(language)}`;
 }
@@ -71,6 +72,25 @@ Analyze the lecture content above and return a JSON object with:
 - "summary": bullet-point markdown summary organized by topics covered
 - "key_points": prioritized markdown exam points
 - "flashcards": array of {"question", "answer"} objects for studying
+- "quiz": array of {"question", "options": [4 items], "correct_index": 0-3, "explanation": "..."} objects${langNote}`;
+}
+
+export function buildVisionUserPrompt(text: string, language: string = 'english'): string {
+  const langNote = language && language !== 'english'
+    ? `\n\nIMPORTANT: Generate all output in ${language} language.`
+    : '';
+  return `The PDF lecture document is attached above. You can see all text, diagrams, figures, charts, tables, and images in it.
+
+For reference, here is the extracted text (use this as supplementary context — but rely primarily on what you see in the PDF itself):
+
+---
+${text}
+---
+
+Analyze the FULL lecture content (text + visuals) and return a JSON object with:
+- "summary": bullet-point markdown summary organized by topics covered — include key insights from diagrams/figures
+- "key_points": prioritized markdown exam points — include diagram/figure interpretations
+- "flashcards": array of {"question", "answer"} objects for studying — include questions about important diagrams
 - "quiz": array of {"question", "options": [4 items], "correct_index": 0-3, "explanation": "..."} objects${langNote}`;
 }
 

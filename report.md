@@ -75,6 +75,8 @@ The frontend is static HTML/CSS/JS served locally. Supabase handles auth, storag
 | Users need feedback during long processing | Polling pattern — Edge Function writes progress to DB, frontend polls every 1.5s |
 | API keys must stay secure | All AI calls happen server-side in Edge Function, keys stored as Supabase secrets |
 
+**Vision mode:** The Edge Function sends the full PDF (base64-encoded) to the AI API — Claude via `@anthropic-ai/sdk` document attachment, Gemini via `inlineData`. The AI sees text, diagrams, figures, charts, and tables together. The extracted text is also sent as supplementary context. This handles text-heavy lectures, mixed text+diagram PDFs, engineering schematics, and chemistry diagrams. Only pure image/scanned PDFs (no extractable text at all) remain unsupported.
+
 ---
 
 ## 7. What I Learned

@@ -92,6 +92,64 @@
     <div class="prog-head"><span class="prog-name" id="prog-name"></span><span class="prog-pct" id="prog-pct">0%</span></div>
     <div class="bar-track"><div class="bar-fill" id="bar"></div></div>
     <div class="prog-msg"><div class="spinner"></div><span id="prog-msg"></span></div>
+
+    <!-- Phase pipeline — visual step indicator -->
+    <div class="phase-pipeline" id="phase-pipeline">
+      <div class="phase-step" data-phase="upload">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <span class="phase-label">Upload</span>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-step" data-phase="summary">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <span class="phase-label">Summary</span>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-step" data-phase="keypoints">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </div>
+        <span class="phase-label">Key Points</span>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-step" data-phase="flashcards">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <span class="phase-label">Flashcards</span>
+      </div>
+      <div class="phase-line"></div>
+      <div class="phase-step" data-phase="quiz">
+        <div class="phase-dot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <span class="phase-label">Quiz</span>
+      </div>
+    </div>
+
+    <!-- Processing skeleton — preview of results layout -->
+    <div class="processing-skeleton" id="processing-skeleton">
+      <div class="skeleton-card">
+        <div class="skeleton-pills">
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
+          <div class="skeleton skeleton-pill"></div>
+        </div>
+        <div class="skeleton skeleton-line w-80 title"></div>
+        <div class="skeleton skeleton-line w-60"></div>
+        <div class="skeleton skeleton-line w-80"></div>
+        <div class="skeleton skeleton-line w-50"></div>
+        <div class="skeleton skeleton-line w-70"></div>
+        <div class="skeleton skeleton-line w-40"></div>
+      </div>
+      <p class="skeleton-label">✨ AI is analyzing your lecture — this usually takes 2–5 minutes</p>
+    </div>
   </div>
 
   <div id="err-box" role="alert" aria-live="polite"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
@@ -276,9 +334,24 @@ async function doUpload() {
     }
   } catch (err) { showErr(err.message); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
 }
+function setActivePhase(pct) {
+  const pipeline = document.getElementById('phase-pipeline');
+  if (!pipeline) return;
+  const steps = pipeline.querySelectorAll('.phase-step');
+  const lines = pipeline.querySelectorAll('.phase-line');
+  const phaseIndex = pct < 15 ? 0 : pct < 50 ? 1 : pct < 70 ? 2 : pct < 85 ? 3 : 4;
+  steps.forEach((s, i) => {
+    s.classList.remove('active', 'done');
+    if (i < phaseIndex) s.classList.add('done');
+    else if (i === phaseIndex) s.classList.add('active');
+  });
+  lines.forEach((l, i) => l.classList.toggle('done', i < phaseIndex));
+}
+
 function updateProgress(pct, msg) {
   $('prog-pct').textContent = pct+'%';
   $('bar').style.width = pct+'%';
+  setActivePhase(pct);
   let displayMsg = msg;
 
   if (startTime && pct >= 35 && pct < 100) {

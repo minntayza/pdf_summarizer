@@ -393,6 +393,76 @@ header { text-align: center; margin-bottom: 52px; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Phase pipeline ────────────────────────────────────────── */
+.phase-pipeline {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; margin: 22px 0 18px; flex-wrap: wrap;
+}
+.phase-step {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  opacity: .38; transition: opacity .35s;
+}
+.phase-step.active { opacity: 1; }
+.phase-step.done  { opacity: .85; }
+.phase-dot {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--border2);
+  background: var(--surf);
+  color: var(--muted);
+  transition: all .4s;
+  position: relative;
+}
+.phase-step.active .phase-dot {
+  border-color: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 35%, transparent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.phase-step.done .phase-dot {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #fff;
+}
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 30%, transparent); }
+  50%      { box-shadow: 0 0 16px color-mix(in srgb, var(--gold) 55%, transparent); }
+}
+.phase-dot svg { width: 15px; height: 15px; }
+.phase-label {
+  font-size: .72rem; font-weight: 500; color: var(--muted);
+  white-space: nowrap;
+}
+.phase-line {
+  width: 28px; height: 1.5px;
+  background: var(--border2);
+  margin: 0 6px 20px;
+  transition: background .5s;
+}
+.phase-line.done { background: var(--gold); }
+
+/* ── Processing skeleton preview ───────────────────────────── */
+.processing-skeleton {
+  margin-top: 18px;
+}
+.processing-skeleton .skeleton-card {
+  padding: 20px 24px;
+}
+.processing-skeleton .skeleton-pills {
+  display: flex; gap: 10px; margin-bottom: 22px;
+}
+.processing-skeleton .skeleton-pills .skeleton-pill {
+  height: 26px; width: 80px; border-radius: 99px;
+}
+.skeleton-label {
+  text-align: center; font-size: .82rem; color: var(--muted);
+  margin-top: 12px;
+  animation: fade-pulse 3s ease-in-out infinite;
+}
+@keyframes fade-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
 /* ── Error ────────────────────────────────────────────────── */
 #err-box {
   display: none; align-items: flex-start; gap: 10px;

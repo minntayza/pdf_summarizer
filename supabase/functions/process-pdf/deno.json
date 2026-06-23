@@ -2,6 +2,7 @@
 {
   "imports": {
     "@supabase/supabase-js": "jsr:@supabase/supabase-js@2",
-    "pdf-parse": "npm:pdf-parse@1.1.1"
+    "pdf-parse": "npm:pdf-parse@1.1.1",
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.105.0"
   }
 }

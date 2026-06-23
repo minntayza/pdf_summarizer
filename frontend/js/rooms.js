@@ -43,14 +43,13 @@ export async function joinRoom(inviteCode) {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  // Find room by invite code
-  const { data: room, error: findErr } = await sb
-    .from('study_rooms')
-    .select('*')
-    .eq('invite_code', inviteCode.trim())
-    .single();
+  // Find room by invite code (SECURITY DEFINER function bypasses RLS)
+  const { data: rooms, error: findErr } = await sb
+    .rpc('lookup_room_by_invite', { _code: inviteCode.trim() });
 
-  if (findErr || !room) return { error: 'Invalid invite code' };
+  if (findErr || !rooms || rooms.length === 0) return { error: 'Invalid invite code' };
+
+  const room = rooms[0];
 
   // Check if already a member
   const { data: existing } = await sb
@@ -145,11 +144,9 @@ export async function deleteRoom(roomId) {
 }
 
 export async function getRoomByInviteCode(code) {
-  const { data, error } = await sb
-    .from('study_rooms')
-    .select('*')
-    .eq('invite_code', code.trim())
-    .single();
+  const { data: rooms, error } = await sb
+    .rpc('lookup_room_by_invite', { _code: code.trim() });
 
-  return { data, error };
+  if (error || !rooms || rooms.length === 0) return { data: null, error: error || 'Not found' };
+  return { data: rooms[0], error: null };
 }

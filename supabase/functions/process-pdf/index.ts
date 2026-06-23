@@ -9,10 +9,12 @@
 //   supabase secrets set GEMINI_API_KEY=...
 
 import { createClient } from "@supabase/supabase-js";
+import Anthropic from "@anthropic-ai/sdk";
 import { extractText, NoTextExtractedError, getWordCount } from "./extract.ts";
 import {
   getSystemPrompt,
   buildUserPrompt,
+  buildVisionUserPrompt,
   parseAIResponse,
   LectureOutput,
 } from "./prompts.ts";
@@ -51,56 +53,48 @@ async function getUserId(req: Request): Promise<string | null> {
 
 // ── AI Provider Calls ───────────────────────────────────────────────
 
-async function callClaude(text: string, language: string = "english"): Promise<LectureOutput> {
+async function callClaude(text: string, language: string = "english", pdfBase64?: string): Promise<LectureOutput> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("Claude API key not configured");
 
   const rawBase = Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com";
-  // Strip trailing /v1 if present — we append /v1/messages below
   const baseUrl = rawBase.replace(/\/v1\/?$/, "");
   const model = Deno.env.get("CLAUDE_MODEL") || "mimo-v2.5-pro";
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 240_000); // 4 min per call
+  const anthropic = new Anthropic({ apiKey, baseURL: baseUrl + "/v1", timeout: 240_000 });
 
-  let resp: Response;
-  try {
-    resp = await fetch(`${baseUrl}/v1/messages`, {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 6144,
-        system: getSystemPrompt(language),
-        messages: [{ role: "user", content: buildUserPrompt(text, language) }],
-      }),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  // Build user message content — send PDF as document when available (vision mode)
+  const userContent = pdfBase64
+    ? [
+        {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data: pdfBase64,
+          },
+        },
+        {
+          type: "text" as const,
+          text: buildVisionUserPrompt(text, language),
+        },
+      ]
+    : buildUserPrompt(text, language);
 
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(
-      `Claude API error (${resp.status}): ${
-        (err as Record<string, unknown>)?.error?.message || resp.statusText
-      }`,
-    );
-  }
+  const msg = await anthropic.messages.create({
+    model,
+    max_tokens: 6144,
+    system: getSystemPrompt(language),
+    messages: [{ role: "user", content: userContent }],
+  });
 
-  const data = await resp.json();
-  const raw = data?.content?.[0]?.text ?? "";
+  const raw = msg.content.find(c => c.type === "text")?.text ?? "";
   if (!raw) throw new Error("Empty response from Claude");
 
   return parseAIResponse(raw);
 }
 
-async function callGemini(text: string, language: string = "english"): Promise<LectureOutput> {
+async function callGemini(text: string, language: string = "english", pdfBase64?: string): Promise<LectureOutput> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("Gemini API key not configured");
 
@@ -108,6 +102,19 @@ async function callGemini(text: string, language: string = "english"): Promise<L
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 240_000); // 4 min per call
+
+  // Build parts — send PDF as inlineData when available (vision mode)
+  const parts = pdfBase64
+    ? [
+        {
+          inlineData: {
+            mimeType: "application/pdf",
+            data: pdfBase64,
+          },
+        },
+        { text: buildVisionUserPrompt(text, language) },
+      ]
+    : [{ text: buildUserPrompt(text, language) }];
 
   let resp: Response;
   try {
@@ -118,7 +125,7 @@ async function callGemini(text: string, language: string = "english"): Promise<L
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: getSystemPrompt(language) }] },
-          contents: [{ parts: [{ text: buildUserPrompt(text, language) }] }],
+          contents: [{ parts }],
           generationConfig: { maxOutputTokens: 6144 },
         }),
         signal: controller.signal,
@@ -144,9 +151,10 @@ async function callAI(
   text: string,
   provider: string,
   language: string = "english",
+  pdfBase64?: string,
 ): Promise<LectureOutput> {
-  if (provider === "gemini") return callGemini(text, language);
-  return callClaude(text, language); // default: claude
+  if (provider === "gemini") return callGemini(text, language, pdfBase64);
+  return callClaude(text, language, pdfBase64); // default: claude
 }
 
 // ── Process PDF (background, after fast response) ───────────────────
@@ -158,9 +166,21 @@ async function callAIWithChunking(
   provider: string,
   update: (fields: Record<string, unknown>) => Promise<void>,
   language: string = "english",
+  pdfBase64?: string,
 ): Promise<LectureOutput> {
   const label = provider === "gemini" ? "Gemini" : "Claude";
 
+  // ── Vision mode: send full PDF (with images/diagrams) in one shot ──
+  if (pdfBase64) {
+    try {
+      return await callAI(text, provider, language, pdfBase64);
+    } catch {
+      await update({ progress: 60, progress_msg: `Retrying with ${label}…` });
+      return await callAI(text, provider, language, pdfBase64);
+    }
+  }
+
+  // ── Text-only fallback: chunk large PDFs by character count ──
   // Small PDF — send in one shot
   if (text.length <= CHUNK_SIZE) {
     try {
@@ -171,7 +191,7 @@ async function callAIWithChunking(
     }
   }
 
-  // Large PDF — split by page boundaries
+  // Large PDF — split by page boundaries (page markers added by pdf-parse)
   const pages = text.split("\n[Page ");
   const chunks: string[] = [];
   let current: string[] = [];
@@ -285,25 +305,35 @@ async function processPDF(
       throw new Error("Failed to download PDF from storage");
     }
 
-    // 2. Extract text
-    await update({ progress: 20, progress_msg: "Extracting text…" });
+    // 2. Extract text (for metadata + supplementary context for vision AI)
+    await update({ progress: 15, progress_msg: "Extracting text…" });
 
     const pdfBuffer = await pdfBlob.arrayBuffer();
     const { text, pageCount } = await extractText(pdfBuffer);
     const wordCount = getWordCount(text);
 
+    // Convert PDF to base64 for vision API (AI sees images, diagrams, charts)
+    // Use chunked conversion to avoid stack overflow on large PDFs
+    const pdfBytes = new Uint8Array(pdfBuffer);
+    const pdfChunks: string[] = [];
+    const CHUNK = 0x8000; // 32 KB per chunk
+    for (let i = 0; i < pdfBytes.length; i += CHUNK) {
+      pdfChunks.push(String.fromCharCode(...pdfBytes.subarray(i, i + CHUNK)));
+    }
+    const pdfBase64 = btoa(pdfChunks.join(""));
+
     await update({
-      progress: 30,
+      progress: 25,
       progress_msg: `Extracted ${pageCount} pages, ~${wordCount.toLocaleString()} words`,
       page_count: pageCount,
       word_count: wordCount,
     });
 
-    // 3. Call AI (with chunking for large PDFs)
+    // 3. Call AI with full PDF (vision mode — AI sees text + images + diagrams)
     const label = provider === "gemini" ? "Gemini" : "Claude";
-    await update({ progress: 35, progress_msg: `Calling ${label} AI…` });
+    await update({ progress: 30, progress_msg: `Analyzing PDF with ${label} (text + figures)…` });
 
-    const result = await callAIWithChunking(text, provider, update, language);
+    const result = await callAIWithChunking(text, provider, update, language, pdfBase64);
 
     await update({ progress: 80, progress_msg: "Writing output files…" });
 

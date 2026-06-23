@@ -15,3 +15,4 @@ package-lock.json
 output/
 input/
 supabase/.temp/
+.vercel
