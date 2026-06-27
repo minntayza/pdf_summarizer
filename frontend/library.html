@@ -9,7 +9,7 @@
 </script>
 <title>Smart PDF Summarizer — Library</title>
 <meta name="description" content="Your saved lecture summaries and flashcards."/>
-<link rel="stylesheet" href="css/style.css?v=3"/>
+<link rel="stylesheet" href="css/style.css?v=4"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -40,6 +40,13 @@
 
   <div id="err-box" role="alert" aria-live="polite"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-text"></span></div>
 
+  <div class="search-bar">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="search" class="search-input" id="search-input" data-i18n-placeholder="searchDocs" placeholder="Search your documents…" autocomplete="off"/>
+    <button class="search-clear" id="search-clear" title="Clear search" hidden aria-label="Clear search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
   <div class="subject-filter" id="subject-filter"></div>
   <div class="doc-list" id="doc-list"></div>
 
@@ -75,13 +82,16 @@ await initPage({
 
 const listEl = document.getElementById('doc-list'), loadingEl = document.getElementById('loading-state'), emptyEl = document.getElementById('empty-state');
 const filterEl = document.getElementById('subject-filter');
+const searchInput = document.getElementById('search-input');
+const searchClear = document.getElementById('search-clear');
 
-let currentDocs = []; // keep reference for delete handler
-let allDocs = []; // unfiltered docs
-let subjects = []; // all subjects
-let activeSubjectId = null; // null = all
+let currentDocs = [];
+let allDocs = [];
+let subjects = [];
+let activeSubjectId = null;
+let searchQuery = '';
+let searchTimeout = null;
 
-// Load subjects for filter
 async function loadSubjects() {
   subjects = await getSubjects();
   renderSubjectFilter();
@@ -89,7 +99,6 @@ async function loadSubjects() {
 
 function renderSubjectFilter() {
   filterEl.innerHTML = '';
-  // "All" pill
   const allPill = document.createElement('button');
   allPill.className = 'subject-pill' + (activeSubjectId === null ? ' active' : '');
   allPill.textContent = t('allSubjects');
@@ -106,13 +115,61 @@ function renderSubjectFilter() {
   });
 }
 
-function filterDocs() {
-  if (activeSubjectId === null) {
-    currentDocs = allDocs;
+function applySubjectFilter(docs) {
+  if (activeSubjectId !== null) return docs.filter(d => d.subject_id === activeSubjectId);
+  return docs;
+}
+
+async function filterDocs() {
+  if (!searchQuery) {
+    // No search — use in-memory data with subject filter only
+    currentDocs = applySubjectFilter(allDocs);
+    renderDocs(currentDocs);
+    return;
+  }
+
+  // Server-side full-text search via PostgreSQL tsvector
+  let query = sb.from('documents')
+    .select('id,filename,provider,status,progress,progress_msg,pdf_path,output_prefix,error_msg,page_count,word_count,flashcard_count,quiz_count,language,subject_id,user_id,created_at,subjects(name,color)')
+    .textSearch('search_vector', searchQuery, { type: 'websearch', config: 'english' });
+
+  if (activeSubjectId !== null) {
+    query = query.eq('subject_id', activeSubjectId);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
+  if (error) {
+    console.error('FTS query failed, falling back to client-side:', error);
+    // Fallback to client-side filter
+    const q = searchQuery.toLowerCase();
+    currentDocs = applySubjectFilter(allDocs).filter(d =>
+      d.filename.toLowerCase().includes(q) ||
+      (d.subjects?.name || '').toLowerCase().includes(q)
+    );
   } else {
-    currentDocs = allDocs.filter(d => d.subject_id === activeSubjectId);
+    currentDocs = data || [];
   }
   renderDocs(currentDocs);
+}
+
+// Wire search (debounced for server-side FTS)
+if (searchInput) {
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value.trim();
+    if (searchClear) searchClear.hidden = !searchQuery;
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => filterDocs(), searchQuery ? 300 : 0);
+  });
+}
+if (searchClear) {
+  searchClear.addEventListener('click', () => {
+    if (searchInput) searchInput.value = '';
+    searchQuery = '';
+    searchClear.hidden = true;
+    clearTimeout(searchTimeout);
+    filterDocs();
+    if (searchInput) searchInput.focus();
+  });
 }
 
 async function deleteDoc(doc, docEl) {
@@ -122,18 +179,15 @@ async function deleteDoc(doc, docEl) {
   docEl.style.opacity = '0.4';
   docEl.style.pointerEvents = 'none';
 
-  // Storage cleanup is best-effort — do not block DB delete
   const prefix = doc.user_id + '/' + doc.id + '/';
   try { await sb.storage.from('outputs').remove([prefix+'summary.md',prefix+'key_points.md',prefix+'flashcards.md',prefix+'quiz.md']); } catch (e) { console.warn('Storage outputs cleanup:', e); }
   const pdfPath = doc.pdf_path ? doc.pdf_path.replace('pdfs/', '') : doc.user_id + '/' + doc.id + '.pdf';
   try { await sb.storage.from('pdfs').remove([pdfPath]); } catch (e) { console.warn('Storage pdf cleanup:', e); }
 
   try {
-    // Delete document row from database
     const { error } = await sb.from('documents').delete().eq('id', doc.id);
     if (error) throw error;
 
-    // Animate out
     docEl.style.transition = 'opacity .25s ease, transform .25s ease';
     docEl.style.transform = 'translateX(20px)';
     docEl.style.opacity = '0';
@@ -171,7 +225,6 @@ function startDocRename(nameEl, doc) {
       return;
     }
     const newName = v.endsWith('.pdf') ? v : v + '.pdf';
-    // Update in DB
     const { error } = await sb.from('documents').update({ filename: newName }).eq('id', doc.id);
     if (error) {
       nameEl.textContent = original;
@@ -191,14 +244,12 @@ function startDocRename(nameEl, doc) {
 
 async function loadDocs() {
   try {
-    const { data: docs, error } = await sb.from('documents').select('*, subjects(name, color)').order('created_at',{ascending:false});
+    const { data: docs, error } = await sb.from('documents').select('id,filename,provider,status,progress,progress_msg,pdf_path,output_prefix,error_msg,page_count,word_count,flashcard_count,quiz_count,language,subject_id,user_id,created_at,subjects(name,color)').order('created_at',{ascending:false});
     allDocs = docs || [];
     loadingEl.style.display='none';
     if (error) { toast(t('somethingWentWrong'), 'error'); return; }
     if (!docs || docs.length===0) { emptyEl.hidden = false; return; }
     emptyEl.hidden = true;
-
-    // Load subjects for filter
     await loadSubjects();
     filterDocs();
   } catch (err) {
@@ -241,7 +292,7 @@ function renderDocs(docs) {
       if (done) window.location.href = 'view.html?id=' + doc.id;
     });
 
-  // Wire up delete buttons (use data-doc-id to avoid stale DOM-index bugs)
+  // Wire up delete buttons
   listEl.querySelectorAll('.doc-delete-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -252,7 +303,7 @@ function renderDocs(docs) {
     });
   });
 
-  // Wire up rename on doc-name click (use data-doc-id to avoid stale DOM-index bugs)
+  // Wire up rename
   listEl.querySelectorAll('.doc-name').forEach(nameEl => {
     nameEl.addEventListener('click', e => {
       e.stopPropagation();

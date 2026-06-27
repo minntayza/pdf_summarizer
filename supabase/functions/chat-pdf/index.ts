@@ -36,13 +36,14 @@ async function callClaude(systemPrompt: string, userMessage: string): Promise<st
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("Claude API key not configured");
 
-  const baseUrl = Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1";
-  const model = Deno.env.get("CLAUDE_MODEL") || "mimo-v2.5-pro";
+  const rawBase = Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com";
+  const baseUrl = rawBase.replace(/\/v1\/?$/, "");
+  const model = Deno.env.get("CLAUDE_MODEL") || "claude-sonnet-4-6";
 
   const resp = await fetch(`${baseUrl}/v1/messages`, {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,
+      "Authorization": `Bearer ${apiKey}`,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },

@@ -7,7 +7,7 @@
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Study Room</title>
-<link rel="stylesheet" href="css/style.css?v=3"/>
+<link rel="stylesheet" href="css/style.css?v=4"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -46,6 +46,7 @@
           <span id="copy-code-text" data-i18n="copyCode">Copy Code</span>
         </button>
         <button class="btn btn-danger btn-sm" id="leave-room-btn" data-i18n="leaveRoom">Leave Room</button>
+        <button class="btn btn-danger btn-sm" id="delete-room-btn" data-i18n="deleteRoom" style="display:none">Delete Room</button>
       </div>
     </div>
 
@@ -79,7 +80,7 @@ import { renderI18n } from './js/ui-init.js';
 import { esc, fmtDate } from './js/app.js';
 import { toast } from './js/toast.js';
 import { confirm } from './js/confirm.js';
-import { getRoomDocuments, shareDocument, removeDocument, leaveRoom } from './js/rooms.js';
+import { getRoomDocuments, shareDocument, removeDocument, leaveRoom, deleteRoom } from './js/rooms.js';
 import { initPage } from './js/page-init.js';
 
 await initPage({ onLangChange: () => { renderI18n(); document.title = t('appName') + ' — ' + t('studyRooms'); } });
@@ -103,13 +104,23 @@ if (roomErr || !room) {
   document.getElementById('room-name').textContent = room.name;
   document.getElementById('invite-code').textContent = room.invite_code;
 
+  const { data: { user } } = await sb.auth.getUser();
+  const isCreator = user && room.created_by === user.id;
+
+  // Show delete room button only for the creator, hide leave room for creator
+  if (isCreator) {
+    document.getElementById('delete-room-btn').style.display = '';
+    document.getElementById('leave-room-btn').style.display = 'none';
+  }
+
   // Copy invite code
   document.getElementById('copy-code-btn').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(room.invite_code);
       document.getElementById('copy-code-text').textContent = t('copied');
       setTimeout(() => { document.getElementById('copy-code-text').textContent = t('copyCode'); }, 2000);
-    } catch {
+    } catch (err) {
+      console.error('Failed to copy invite code:', err);
       toast('Failed to copy', 'error');
     }
   });
@@ -120,6 +131,16 @@ if (roomErr || !room) {
     if (!ok) return;
     const { error } = await leaveRoom(roomId);
     if (error) return toast('Failed to leave room.', 'error');
+    window.location.href = 'rooms.html';
+  });
+
+  // Delete room (creator only)
+  document.getElementById('delete-room-btn').addEventListener('click', async () => {
+    const ok = await confirm(t('deleteRoomConfirm'));
+    if (!ok) return;
+    const { error } = await deleteRoom(roomId);
+    if (error) return toast('Failed to delete room.', 'error');
+    toast('Room deleted.', 'success');
     window.location.href = 'rooms.html';
   });
 
@@ -145,8 +166,28 @@ if (roomErr || !room) {
           <span class="doc-name">${esc(doc.filename)}</span>
           <div class="doc-meta">${t('sharedBy')}: ${esc(doc.shared_by?.substring(0, 8) || 'Unknown')} · ${fmtDate(doc.shared_at)}</div>
         </div>
+        ${isCreator ? `<button class="doc-delete-btn" title="Remove from room" aria-label="Remove ${esc(doc.filename)} from room">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>` : ''}
       `;
       card.addEventListener('click', () => { window.location.href = 'view.html?id=' + doc.id; });
+
+      // Wire remove button (creator only)
+      if (isCreator) {
+        const removeBtn = card.querySelector('.doc-delete-btn');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const ok = await confirm('Remove "' + doc.filename + '" from this room?');
+            if (!ok) return;
+            const { error } = await removeDocument(roomId, doc.id);
+            if (error) return toast('Failed to remove document.', 'error');
+            toast('Document removed from room.', 'success');
+            await loadSharedDocs();
+          });
+        }
+      }
+
       container.appendChild(card);
     });
   }
@@ -159,7 +200,7 @@ if (roomErr || !room) {
     sharePicker.style.display = sharePicker.style.display === 'none' ? 'block' : 'none';
     if (sharePicker.style.display === 'block') {
       // Load user's done documents
-      const { data: myDocs } = await sb.from('documents').select('*').eq('status', 'done').order('created_at', { ascending: false });
+      const { data: myDocs } = await sb.from('documents').select('id,filename,provider,status,page_count,word_count,flashcard_count,quiz_count,language,subject_id,user_id,created_at,output_prefix').eq('status', 'done').order('created_at', { ascending: false });
       const pickerList = document.getElementById('share-picker-list');
       pickerList.innerHTML = '';
 

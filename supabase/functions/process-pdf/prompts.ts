@@ -21,9 +21,18 @@ export interface LectureOutput {
 
 // ── Language instruction ────────────────────────────────────────────
 
+const LANGUAGE_MAP: Record<string, string> = {
+  myanmar: 'Burmese (Myanmar)',
+  chinese: 'Chinese (Mandarin)',
+  japanese: 'Japanese',
+  korean: 'Korean',
+  thai: 'Thai',
+};
+
 function languageInstruction(lang: string): string {
   if (!lang || lang === 'english') return '';
-  return `\n\nLANGUAGE: Generate ALL output (summary, key_points, flashcards, quiz) in ${lang} language. Write naturally in ${lang} — do not transliterate. Use ${lang} script and vocabulary appropriate for university students.`;
+  const langName = LANGUAGE_MAP[lang] || lang;
+  return `\n\nLANGUAGE: Generate ALL output (summary, key_points, flashcards, quiz) in ${langName}. Write naturally in ${langName} — do not transliterate. Use ${langName} script and vocabulary appropriate for university students.`;
 }
 
 // ── Prompts ─────────────────────────────────────────────────────────
@@ -59,8 +68,9 @@ IMPORTANT:
 }
 
 export function buildUserPrompt(text: string, language: string = 'english'): string {
+  const langName = LANGUAGE_MAP[language] || language;
   const langNote = language && language !== 'english'
-    ? `\n\nIMPORTANT: Generate all output in ${language} language.`
+    ? `\n\nIMPORTANT: Generate all output in ${langName}.`
     : '';
   return `Here is the extracted text from the lecture PDF:
 
@@ -76,8 +86,9 @@ Analyze the lecture content above and return a JSON object with:
 }
 
 export function buildVisionUserPrompt(text: string, language: string = 'english'): string {
+  const langName = LANGUAGE_MAP[language] || language;
   const langNote = language && language !== 'english'
-    ? `\n\nIMPORTANT: Generate all output in ${language} language.`
+    ? `\n\nIMPORTANT: Generate all output in ${langName}.`
     : '';
   return `The PDF lecture document is attached above. You can see all text, diagrams, figures, charts, tables, and images in it.
 
@@ -179,6 +190,72 @@ export function parseAIResponse(raw: string): LectureOutput {
   }
   json = json.trim();
 
-  const parsed = JSON.parse(json);
-  return validateOutput(parsed);
+  try {
+    const parsed = JSON.parse(json);
+    return validateOutput(parsed);
+  } catch {
+    // Attempt to repair truncated JSON (common with non-English outputs hitting token limits)
+    const repaired = repairTruncatedJSON(json);
+    if (repaired) {
+      const parsed = JSON.parse(repaired);
+      return validateOutput(parsed);
+    }
+    throw new Error("AI response was not valid JSON and could not be repaired");
+  }
+}
+
+/**
+ * Attempt to repair JSON that was truncated mid-output (e.g. token limit hit).
+ * Strategy: close any open strings, arrays, and objects to make valid JSON.
+ */
+function repairTruncatedJSON(json: string): string | null {
+  // If the JSON doesn't even start correctly, give up
+  if (!json.startsWith('{')) return null;
+
+  let s = json;
+
+  // 1. If we're inside a string, close it
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; }
+  }
+  if (inString) {
+    s += '"';
+  }
+
+  // 2. Remove trailing comma or partial value if any
+  s = s.replace(/,\s*$/, '');
+
+  // 3. Count open brackets/braces and close them
+  let braces = 0;
+  let brackets = 0;
+  inString = false;
+  escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') braces++;
+    else if (ch === '}') braces--;
+    else if (ch === '[') brackets++;
+    else if (ch === ']') brackets--;
+  }
+
+  // Close any open arrays then objects
+  for (let i = 0; i < brackets; i++) s += ']';
+  for (let i = 0; i < braces; i++) s += '}';
+
+  // Verify it's now valid JSON
+  try {
+    JSON.parse(s);
+    return s;
+  } catch {
+    return null;
+  }
 }

@@ -27,8 +27,8 @@ export function initTheme() {
 function updateThemeUI(theme) {
   const darkIcon = document.getElementById('theme-icon-dark');
   const lightIcon = document.getElementById('theme-icon-light');
-  if (darkIcon) darkIcon.style.display = theme === 'dark' ? '' : 'none';
-  if (lightIcon) lightIcon.style.display = theme === 'light' ? '' : 'none';
+  if (darkIcon) darkIcon.classList.toggle('theme-icon-hidden', theme !== 'dark');
+  if (lightIcon) lightIcon.classList.toggle('theme-icon-hidden', theme !== 'light');
 }
 
 // ── Font size ────────────────────────────────────────────

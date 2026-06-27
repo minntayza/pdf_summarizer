@@ -7,6 +7,7 @@ export function injectControlBar() {
   if (!target) return;
 
   target.innerHTML = `
+    <span id="streak-display"></span>
     <button class="toggle-pill font-size-btn" id="font-size-btn" aria-label="Adjust font size" title="Font size"></button>
     <button class="toggle-pill" id="theme-toggle" aria-label="Toggle theme">
       <svg id="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>

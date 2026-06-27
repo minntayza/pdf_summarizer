@@ -8,8 +8,9 @@
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Upload</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <meta name="description" content="Upload a lecture PDF and get AI-generated study materials."/>
-<link rel="stylesheet" href="css/style.css?v=3"/>
+<link rel="stylesheet" href="css/style.css?v=4"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -37,14 +38,14 @@
   <div class="card" id="upload-card">
     <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
       <div style="flex:1;min-width:140px">
-        <label class="provider-label" data-i18n="subjects">Subject</label>
-        <select id="subject-select" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
+        <label class="provider-label" for="subject-select" data-i18n="subjects">Subject</label>
+        <select id="subject-select" aria-label="Subject" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
           <option value="" data-i18n="noSubject">No Subject</option>
         </select>
       </div>
       <div style="flex:1;min-width:140px">
-        <label class="provider-label" data-i18n="outputLanguage">Output Language</label>
-        <select id="language-select" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
+        <label class="provider-label" for="language-select" data-i18n="outputLanguage">Output Language</label>
+        <select id="language-select" aria-label="Output Language" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
           <option value="english" data-i18n="langEnglish">English</option>
           <option value="myanmar" data-i18n="langMyanmar">Myanmar</option>
           <option value="chinese" data-i18n="langChinese">Chinese</option>
@@ -61,17 +62,41 @@
         <span class="prov-name">Claude</span>
         <span class="prov-sub">via custom proxy</span>
       </button>
-      <button class="prov-btn" id="btn-gemini">
+      <button class="prov-btn" id="btn-gemini" disabled title="Gemini requires API key setup">
         <span class="prov-name">Gemini</span>
-        <span class="prov-sub">gemini-1.5-flash</span>
+        <span class="prov-sub">gemini-1.5-flash · setup required</span>
       </button>
+    </div>
+
+    <!-- Provider capabilities info -->
+    <div class="provider-info" id="provider-info">
+      <div class="provider-cap" id="cap-claude">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <span data-i18n="capClaudeProxy">Custom proxy — English recommended for best speed. Vision mode disabled. May timeout on large PDFs.</span>
+      </div>
+      <div class="provider-cap" id="cap-gemini" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span data-i18n="capGemini">Direct API — all languages supported, vision mode available</span>
+      </div>
+    </div>
+
+    <!-- Language warning (shown when non-English selected with Claude) -->
+    <div class="lang-warning" id="lang-warning" style="display:none">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span data-i18n="langSlowWarning">Non-English output may take 5–10 minutes with this proxy</span>
+    </div>
+
+    <!-- Proxy speed warning (shown when Claude selected) -->
+    <div class="proxy-warning" id="proxy-warning">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <span data-i18n="proxySlowWarning">Proxy is slow — processing may take 5–8 minutes</span>
     </div>
 
     <div id="drop-zone" tabindex="0" role="button" aria-label="Upload PDF file">
       <div class="drop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
       <div class="drop-title" data-i18n="dropTitle">Drop your lecture PDF here</div>
       <div class="drop-sub" data-i18n="dropSub">or click to browse — max 25 MB</div>
-      <input type="file" id="file-input" accept=".pdf,application/pdf"/>
+      <input type="file" id="file-input" accept=".pdf,application/pdf" aria-label="Choose PDF file"/>
     </div>
 
     <div id="file-chip">
@@ -190,11 +215,12 @@
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
 import { renderI18n, initTabs, switchTab } from './js/ui-init.js';
-import { esc, md2html, fmtSize, parseFlashcards, renderFlashcards, parseQuiz, renderQuiz, downloadBlob } from './js/app.js';
+import { esc, md2html, fmtSize, parseFlashcards, renderFlashcards, parseQuiz, renderQuiz, downloadBlob, stripMdBoilerplate, isIncompleteOutput } from './js/app.js';
 import { toast } from './js/toast.js';
 import { getSubjects } from './js/subjects.js';
 import { renderChat, sendChatMessage, getChatHistory, appendMessage, showTypingIndicator, removeTypingIndicator } from './js/chat.js';
 import { initPage } from './js/page-init.js';
+import { recordActivity, renderStreak } from './js/streak.js';
 
 const { user } = await initPage({
   onLangChange: () => { renderI18n(); document.getElementById('submit-btn').textContent = t('analyzePDF'); document.title = t('appName') + ' — ' + t('uploadTitle'); }
@@ -224,12 +250,38 @@ let etaBuckets = []; // rolling window of {pct, elapsed} for smoothed ETA
 let customFilename = ''; // user-editable filename
 
 document.getElementById('btn-claude').addEventListener('click', () => { provider='claude'; updateProvUI(); });
-document.getElementById('btn-gemini').addEventListener('click', () => { provider='gemini'; updateProvUI(); });
+document.getElementById('btn-gemini').addEventListener('click', () => {
+  if (document.getElementById('btn-gemini').disabled) {
+    toast(t('geminiNotConfigured'), 'error');
+    return;
+  }
+  provider='gemini'; updateProvUI();
+});
+document.getElementById('language-select').addEventListener('change', updateLangWarning);
+
 function updateProvUI() {
   $('btn-claude').className = 'prov-btn' + (provider==='claude'?' active':'');
   $('btn-gemini').className = 'prov-btn' + (provider==='gemini'?' active':'');
+  // Show/hide provider capability info
+  $('cap-claude').style.display = provider==='claude' ? 'flex' : 'none';
+  $('cap-gemini').style.display = provider==='gemini' ? 'flex' : 'none';
+  // Show/hide proxy warning (only for Claude)
+  $('proxy-warning').style.display = provider==='claude' ? 'flex' : 'none';
+  updateLangWarning();
 }
+
+function updateLangWarning() {
+  const lang = $('language-select').value;
+  const isNonEnglish = lang !== 'english';
+  const isClaude = provider === 'claude';
+  // Show warning for non-English + Claude (proxy is slow)
+  $('lang-warning').style.display = (isNonEnglish && isClaude) ? 'flex' : 'none';
+}
+
 function checkBtn() { $('submit-btn').disabled = !selFile; }
+
+// Initialize provider info UI on page load
+updateProvUI();
 
 const fileInput = $('file-input');
 const dz = $('drop-zone');
@@ -293,8 +345,25 @@ dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('ove
 dz.addEventListener('dragleave', () => dz.classList.remove('over'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); e.dataTransfer.files[0] && setFile(e.dataTransfer.files[0]); });
 
-function showErr(msg) { $('err-box').classList.add('show'); $('err-text').textContent = msg; }
+function showErr(msg) { $('err-box').classList.add('show'); $('err-text').textContent = formatUploadError(msg); }
 function hideErr() { $('err-box').classList.remove('show'); }
+
+function formatUploadError(msg) {
+  if (!msg) return t('somethingWentWrong');
+  if (msg.includes('502') || msg.includes('Bad gateway')) {
+    return t('errProxy502');
+  }
+  if (/timed out|signal has been aborted/i.test(msg)) {
+    return t('errProxyTimeout');
+  }
+  if (msg.includes('<!DOCTYPE') || msg.includes('<html')) {
+    return t('errProxy502');
+  }
+  if (/try Gemini/i.test(msg)) {
+    return msg.replace(/try Gemini or re-upload\.?\s*/gi, '');
+  }
+  return msg.length > 400 ? msg.slice(0, 400) + '…' : msg;
+}
 
 async function doUpload() {
   if (!selFile) return;
@@ -384,14 +453,29 @@ function updateProgress(pct, msg) {
 }
 
 function startPoll(docId, uid) {
+
   let failCount = 0;
+  let pollCount = 0;
+  const MAX_POLLS = 600; // 600 × 1.5s = 15 minutes max
   pollTimer = setInterval(async () => {
+    pollCount++;
+    if (pollCount > MAX_POLLS) {
+      clearInterval(pollTimer);
+      showErr(t('somethingWentWrong') || 'Processing timed out. Please try again.');
+      $('upload-card').style.display = '';
+      $('prog-section').classList.remove('show');
+      return;
+    }
     try {
-      const { data: doc } = await sb.from('documents').select('*').eq('id', docId).single();
-      if (!doc) return;
+      const { data: doc, error: pollErr2 } = await sb.from('documents').select('id,status,progress,progress_msg,error_msg,page_count,word_count,flashcard_count,quiz_count,provider,filename,language,created_at,output_prefix,pdf_path,user_id,subject_id').eq('id', docId).maybeSingle();
+      if (pollErr2) {
+        console.error('Poll query error:', pollErr2);
+        return;
+      }
+      if (!doc) return; // row not yet inserted by edge function — retry silently
       failCount = 0;
       updateProgress(doc.progress, doc.progress_msg);
-      if (doc.status === 'done') { clearInterval(pollTimer); showResults(doc, uid); }
+      if (doc.status === 'done') { clearInterval(pollTimer); showResults(doc, uid); recordActivity().then(() => renderStreak('streak-display')); }
       if (doc.status === 'error') { clearInterval(pollTimer); showErr(doc.error_msg || t('somethingWentWrong')); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
     } catch (pollErr) {
       console.error('Poll failed:', pollErr);
@@ -404,6 +488,15 @@ function startPoll(docId, uid) {
       }
     }
   }, 1500);
+}
+
+function renderMdPanel(el, raw, emptyMsg) {
+  if (isIncompleteOutput(raw)) {
+    el.innerHTML = `<div class="empty-state"><p>${esc(emptyMsg || t('processingIncomplete'))}</p></div>`;
+    return;
+  }
+  const body = stripMdBoilerplate(raw);
+  el.innerHTML = body ? md2html(body) : `<div class="empty-state"><p>${esc(emptyMsg || t('contentMissing'))}</p></div>`;
 }
 
 async function showResults(doc, uid) {
@@ -432,14 +525,14 @@ async function showResults(doc, uid) {
 
     if (sRes.data) {
       rawSummary = await sRes.data.text();
-      $('c-summary').innerHTML = md2html(rawSummary.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+      renderMdPanel($('c-summary'), rawSummary);
     } else if (sRes.error) {
       console.error('Failed to load summary:', sRes.error);
       downloadFailed = true;
     }
     if (kRes.data) {
       rawKeyPoints = await kRes.data.text();
-      $('c-keypoints').innerHTML = md2html(rawKeyPoints.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+      renderMdPanel($('c-keypoints'), rawKeyPoints);
     } else if (kRes.error) {
       console.error('Failed to load key points:', kRes.error);
       downloadFailed = true;
@@ -447,7 +540,11 @@ async function showResults(doc, uid) {
     if (fRes.data) {
       rawFlashcards = await fRes.data.text();
       const cards = parseFlashcards(rawFlashcards);
-      renderFlashcards($('c-flashcards'), cards, t);
+      if (cards.length === 0) {
+        $('c-flashcards').innerHTML = `<div class="empty-state"><p>${esc(t('contentMissing'))}</p></div>`;
+      } else {
+        renderFlashcards($('c-flashcards'), cards, t);
+      }
     } else if (fRes.error) {
       console.error('Failed to load flashcards:', fRes.error);
       downloadFailed = true;
@@ -455,7 +552,11 @@ async function showResults(doc, uid) {
     if (qRes.data) {
       rawQuiz = await qRes.data.text();
       const quizQuestions = parseQuiz(rawQuiz);
-      renderQuiz($('c-quiz'), quizQuestions, t);
+      if (quizQuestions.length === 0) {
+        $('c-quiz').innerHTML = `<div class="empty-state"><p>${esc(t('contentMissing'))}</p></div>`;
+      } else {
+        renderQuiz($('c-quiz'), quizQuestions, t);
+      }
     } else if (qRes.error) {
       // Quiz is optional, don't mark as failed
       console.log('No quiz available');

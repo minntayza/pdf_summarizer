@@ -9,7 +9,6 @@
 //   supabase secrets set GEMINI_API_KEY=...
 
 import { createClient } from "@supabase/supabase-js";
-import Anthropic from "@anthropic-ai/sdk";
 import { extractText, NoTextExtractedError, getWordCount } from "./extract.ts";
 import {
   getSystemPrompt,
@@ -26,6 +25,20 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
+// ── Binary to base64 (chunked, no stack overflow on large PDFs) ─────
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000; // 32 KB — safe for V8 spread operator
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, i + CHUNK);
+    // Convert each chunk to binary string then base64 — avoids building
+    // one massive binary string before encoding (stack-safe + memory-safe)
+    parts.push(btoa(String.fromCharCode(...slice)));
+  }
+  return parts.join("");
+}
 
 function corsResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -59,9 +72,7 @@ async function callClaude(text: string, language: string = "english", pdfBase64?
 
   const rawBase = Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com";
   const baseUrl = rawBase.replace(/\/v1\/?$/, "");
-  const model = Deno.env.get("CLAUDE_MODEL") || "mimo-v2.5-pro";
-
-  const anthropic = new Anthropic({ apiKey, baseURL: baseUrl + "/v1", timeout: 240_000 });
+  const model = Deno.env.get("CLAUDE_MODEL") || "claude-sonnet-4-6";
 
   // Build user message content — send PDF as document when available (vision mode)
   const userContent = pdfBase64
@@ -81,14 +92,74 @@ async function callClaude(text: string, language: string = "english", pdfBase64?
       ]
     : buildUserPrompt(text, language);
 
-  const msg = await anthropic.messages.create({
-    model,
-    max_tokens: 6144,
-    system: getSystemPrompt(language),
-    messages: [{ role: "user", content: userContent }],
-  });
+  // Non-English output (especially Burmese/Chinese/Japanese) requires many
+  // more tokens because each character encodes to multiple JSON tokens.
+  const isNonEnglish = language && language !== 'english';
+  const isOfficialAnthropic = !Deno.env.get("ANTHROPIC_BASE_URL") ||
+    Deno.env.get("ANTHROPIC_BASE_URL") === "https://api.anthropic.com";
+  // Use smaller max_tokens for proxy (faster response), but non-English still
+  // needs more than English because each character encodes to multiple JSON tokens.
+  const maxTokens = isNonEnglish
+    ? (isOfficialAnthropic ? 16384 : 4096)
+    : (isOfficialAnthropic ? 6144 : 3072);
 
-  const raw = msg.content.find(c => c.type === "text")?.text ?? "";
+  // Single attempt: 180s proxy, 180s official. Non-English (Myanmar etc.) needs
+  // more time because the proxy is slower and each token is more expensive.
+  const baseTimeout = isOfficialAnthropic ? 180_000 : 180_000;
+  const timeoutMs = isNonEnglish ? baseTimeout + 60_000 : baseTimeout;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  let resp: Response;
+  try {
+    resp = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        system: getSystemPrompt(language),
+        messages: [{ role: "user", content: userContent }],
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401 || status === 403) {
+      throw new Error(`Claude API authentication failed (${status}). Check your ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL secrets in Supabase.`);
+    }
+    if (status === 429) {
+      throw new Error(`Claude API rate limited (429). Try again in a few minutes.`);
+    }
+    if (status === 502 || status === 503 || status === 504) {
+      throw new Error(`Claude proxy is temporarily unavailable (${status}). Wait a few minutes and retry.`);
+    }
+    const errBody = await resp.text().catch(() => "");
+    if (errBody.trimStart().startsWith("<!DOCTYPE") || errBody.trimStart().startsWith("<html")) {
+      throw new Error(`Claude API error (${status}). The proxy returned an invalid response. Try again in a few minutes.`);
+    }
+    throw new Error(`Claude API error (${status}): ${errBody.slice(0, 200)}`);
+  }
+
+  // Check for timeout (AbortController)
+  if (controller.signal.aborted) {
+    const endpoint = isOfficialAnthropic ? "Anthropic" : "proxy";
+    throw new Error(`Claude API timeout (${endpoint}). The request took too long. Try again or use a smaller PDF.`);
+  }
+
+  // Log successful response time for debugging
+  console.log(`Claude API response received (${isOfficialAnthropic ? 'official' : 'proxy'})`);
+
+  const data = await resp.json();
+  const raw = data?.content?.find((c: Record<string, unknown>) => c.type === "text")?.text ?? "";
   if (!raw) throw new Error("Empty response from Claude");
 
   return parseAIResponse(raw);
@@ -101,7 +172,7 @@ async function callGemini(text: string, language: string = "english", pdfBase64?
   const model = Deno.env.get("GEMINI_MODEL") || "gemini-1.5-flash";
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 240_000); // 4 min per call
+  const timeout = setTimeout(() => controller.abort(), 60_000); // 60s — same as Claude proxy
 
   // Build parts — send PDF as inlineData when available (vision mode)
   const parts = pdfBase64
@@ -116,6 +187,9 @@ async function callGemini(text: string, language: string = "english", pdfBase64?
       ]
     : [{ text: buildUserPrompt(text, language) }];
 
+  // Non-English output needs more tokens (Burmese ~3-4× more than English)
+  const maxTokens = language && language !== 'english' ? 32768 : 6144;
+
   let resp: Response;
   try {
     resp = await fetch(
@@ -126,7 +200,7 @@ async function callGemini(text: string, language: string = "english", pdfBase64?
         body: JSON.stringify({
           system_instruction: { parts: [{ text: getSystemPrompt(language) }] },
           contents: [{ parts }],
-          generationConfig: { maxOutputTokens: 6144 },
+          generationConfig: { maxOutputTokens: maxTokens },
         }),
         signal: controller.signal,
       },
@@ -160,6 +234,50 @@ async function callAI(
 // ── Process PDF (background, after fast response) ───────────────────
 
 const CHUNK_SIZE = 60000; // characters per chunk (mirrors main.py)
+const PROXY_CHUNK_SIZE = 12000; // smaller chunks for proxy — faster per-call, avoids 8min+ hangs
+
+function aiErrorMessage(err: unknown): string {
+  let msg = err instanceof Error ? err.message : String(err);
+
+  if (msg.includes("Gemini API key not configured")) {
+    return "Gemini is not set up yet. Use Claude instead.";
+  }
+  if (msg.includes("502") || msg.includes("Bad gateway")) {
+    return "Claude proxy is temporarily unavailable (502). Wait a few minutes and retry, or use a smaller PDF.";
+  }
+  if (msg.includes("The signal has been aborted") || /timed out/i.test(msg)) {
+    return "Processing took too long. The AI service may be experiencing high traffic — please retry in a few minutes, or try a smaller PDF.";
+  }
+  if (msg.includes("<!DOCTYPE") || msg.includes("<html")) {
+    return "Claude proxy returned an error page. Wait a few minutes and try again.";
+  }
+  if (/try Gemini/i.test(msg)) {
+    msg = msg.replace(/try Gemini or re-upload\.?\s*/gi, "retry later. ");
+  }
+  return msg.length > 300 ? msg.slice(0, 300) + "…" : msg;
+}
+
+/** Keep progress_msg alive during long AI calls so the UI does not look frozen. */
+async function withHeartbeat(
+  update: (fields: Record<string, unknown>) => Promise<void>,
+  label: string,
+  progress: number,
+  fn: () => Promise<LectureOutput>,
+): Promise<LectureOutput> {
+  let tick = 0;
+  const heartbeat = setInterval(() => {
+    tick++;
+    update({
+      progress,
+      progress_msg: `Still processing with ${label}… (${tick * 30}s)`,
+    }).catch(() => {});
+  }, 30_000);
+  try {
+    return await fn();
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
 
 async function callAIWithChunking(
   text: string,
@@ -171,23 +289,39 @@ async function callAIWithChunking(
   const label = provider === "gemini" ? "Gemini" : "Claude";
 
   // ── Vision mode: send full PDF (with images/diagrams) in one shot ──
-  if (pdfBase64) {
+  // Only use vision mode with the official Anthropic API (not proxied endpoints)
+  const isOfficialAnthropic = !Deno.env.get("ANTHROPIC_BASE_URL") ||
+    Deno.env.get("ANTHROPIC_BASE_URL") === "https://api.anthropic.com";
+  if (pdfBase64 && isOfficialAnthropic) {
     try {
       return await callAI(text, provider, language, pdfBase64);
     } catch {
-      await update({ progress: 60, progress_msg: `Retrying with ${label}…` });
-      return await callAI(text, provider, language, pdfBase64);
+      // Vision failed — fall back to text-only mode
+      await update({ progress: 30, progress_msg: `Vision mode failed, using text extraction…` });
     }
   }
 
   // ── Text-only fallback: chunk large PDFs by character count ──
+  // Use smaller chunks for proxy endpoints (faster processing)
+  const chunkSize = isOfficialAnthropic ? CHUNK_SIZE : PROXY_CHUNK_SIZE;
+
   // Small PDF — send in one shot
-  if (text.length <= CHUNK_SIZE) {
+  if (text.length <= chunkSize) {
     try {
-      return await callAI(text, provider, language);
-    } catch {
-      await update({ progress: 60, progress_msg: `Retrying with ${label}…` });
-      return await callAI(text, provider, language);
+      return await withHeartbeat(update, label, 35, () => callAI(text, provider, language));
+    } catch (err) {
+      const errMsg = aiErrorMessage(err);
+      console.error(`First attempt failed: ${errMsg}`);
+      await update({ progress: 40, progress_msg: `Retrying ${label} (attempt 2/2)…` });
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        return await withHeartbeat(update, label, 40, () => callAI(text, provider, language));
+      } catch (retryErr) {
+        const retryMsg = aiErrorMessage(retryErr);
+        throw new Error(
+          `AI processing failed after retry. The proxy may be slow or overloaded — wait and re-upload. First: ${errMsg}. Retry: ${retryMsg}`,
+        );
+      }
     }
   }
 
@@ -199,7 +333,7 @@ async function callAIWithChunking(
 
   for (const pageText of pages) {
     const pageLen = pageText.length;
-    if (currentLen + pageLen > CHUNK_SIZE && current.length > 0) {
+    if (currentLen + pageLen > chunkSize && current.length > 0) {
       chunks.push("\n[Page " + current.join(""));
       current = [pageText];
       currentLen = pageLen;
@@ -225,22 +359,18 @@ async function callAIWithChunking(
 
     let result: LectureOutput | null = null;
 
-    // Retry once on failure (matches single-chunk behavior)
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        result = await callAI(chunks[i], provider, language);
+        result = await withHeartbeat(update, label, pct, () => callAI(chunks[i], provider, language));
         break;
       } catch (err) {
-        const isLast = attempt === 1;
-        if (isLast) {
-          console.error(`Chunk ${i + 1}/${totalChunks} failed after retry:`, err);
-          skippedChunks.push(i + 1);
-        } else {
-          await update({
-            progress: pct,
-            progress_msg: `Retrying chunk ${i + 1}/${totalChunks}…`,
-          });
+        if (attempt === 0) {
+          await update({ progress: pct, progress_msg: `Retrying chunk ${i + 1}/${totalChunks} (attempt 2/2)…` });
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
         }
+        console.error(`Chunk ${i + 1}/${totalChunks} failed:`, aiErrorMessage(err));
+        skippedChunks.push(i + 1);
       }
     }
 
@@ -253,6 +383,13 @@ async function callAIWithChunking(
     }
   }
 
+  // If ALL chunks failed, throw an error so the document is marked as "error"
+  // (must check BEFORE appending warnings, otherwise the warning text makes
+  // merged.summary truthy and the failure is silently treated as success)
+  if (skippedChunks.length === totalChunks) {
+    throw new Error("AI processing failed — the service may be slow or overloaded. Please re-upload this PDF.");
+  }
+
   // Surface skipped chunks as warnings in the output so the user knows content is missing
   if (skippedChunks.length > 0) {
     const warning = `\n\n---\n> ⚠️ **Warning:** Chunk(s) ${skippedChunks.join(", ")} could not be processed. Some content may be missing from this summary.\n`;
@@ -260,6 +397,7 @@ async function callAIWithChunking(
     merged.key_points += warning;
   }
 
+  // Double-check: no content at all
   if (!merged.summary && merged.flashcards.length === 0) {
     throw new Error("All chunks failed to process");
   }
@@ -283,13 +421,18 @@ async function processPDF(
       .eq("user_id", userId);
   };
 
-  // Safety timeout: mark document as error if processing exceeds 10 minutes
-  const PROCESSING_TIMEOUT_MS = 600_000;
+  // Safety timeout: must complete before Supabase kills the isolate.
+  // Allow enough room for: first attempt + 3s retry delay + second attempt.
+  // English: 180s + 3s + 180s = 363s → 600s gives margin for chunked PDFs
+  // Non-English: 240s + 3s + 240s = 483s → 720s gives margin
+  const isNonEnglish = language && language !== "english";
+  const PROCESSING_TIMEOUT_MS = isNonEnglish ? 720_000 : 600_000;
   const timeoutId = setTimeout(async () => {
     await update({
       status: "error",
-      error_msg: "Processing timed out. The PDF may be too large. Try a smaller file.",
+      error_msg: "Processing took too long. Please retry — the AI service may be busy, or try a smaller PDF.",
       progress: 0,
+      progress_msg: "Timed out",
     });
   }, PROCESSING_TIMEOUT_MS);
 
@@ -313,14 +456,9 @@ async function processPDF(
     const wordCount = getWordCount(text);
 
     // Convert PDF to base64 for vision API (AI sees images, diagrams, charts)
-    // Use chunked conversion to avoid stack overflow on large PDFs
+    // Use streaming chunked conversion — avoids String.fromCharCode spread stack overflow
     const pdfBytes = new Uint8Array(pdfBuffer);
-    const pdfChunks: string[] = [];
-    const CHUNK = 0x8000; // 32 KB per chunk
-    for (let i = 0; i < pdfBytes.length; i += CHUNK) {
-      pdfChunks.push(String.fromCharCode(...pdfBytes.subarray(i, i + CHUNK)));
-    }
-    const pdfBase64 = btoa(pdfChunks.join(""));
+    const pdfBase64 = bytesToBase64(pdfBytes);
 
     await update({
       progress: 25,
@@ -329,9 +467,12 @@ async function processPDF(
       word_count: wordCount,
     });
 
-    // 3. Call AI with full PDF (vision mode — AI sees text + images + diagrams)
+    // 3. Call AI — vision mode (images) if official API, text-only if proxied
     const label = provider === "gemini" ? "Gemini" : "Claude";
-    await update({ progress: 30, progress_msg: `Analyzing PDF with ${label} (text + figures)…` });
+    const isOfficialAnthropic = !Deno.env.get("ANTHROPIC_BASE_URL") ||
+      Deno.env.get("ANTHROPIC_BASE_URL") === "https://api.anthropic.com";
+    const modeLabel = (pdfBase64 && isOfficialAnthropic) ? "text + figures" : "text extraction";
+    await update({ progress: 30, progress_msg: `Analyzing PDF with ${label} (${modeLabel})…` });
 
     const result = await callAIWithChunking(text, provider, update, language, pdfBase64);
 
@@ -410,14 +551,16 @@ async function processPDF(
       throw new Error(`Failed to save: ${failedFiles.join(", ")}. Please try again.`);
     }
 
-    // 5. Mark done
+    // 5. Mark done — include summary_text for full-text search
     await update({
       status: "done",
       progress: 100,
       progress_msg: "Complete!",
+      error_msg: null,
       output_prefix: outputPrefix,
       flashcard_count: result.flashcards.length,
       quiz_count: result.quiz.length,
+      summary_text: result.summary,
     });
 
     clearTimeout(timeoutId);
@@ -426,8 +569,12 @@ async function processPDF(
     // await supabaseService.storage.from("pdfs").remove([pdfPath]);
   } catch (err) {
     clearTimeout(timeoutId);
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    await update({ status: "error", error_msg: msg, progress: 0 });
+    const msg = aiErrorMessage(err);
+    try {
+      await update({ status: "error", error_msg: msg, progress: 0, progress_msg: "Error" });
+    } catch (updateErr) {
+      console.error("Failed to update document status to error:", updateErr);
+    }
   }
 }
 

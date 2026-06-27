@@ -7,7 +7,7 @@
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Study Rooms</title>
-<link rel="stylesheet" href="css/style.css?v=3"/>
+<link rel="stylesheet" href="css/style.css?v=4"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -87,12 +87,13 @@ import { renderI18n } from './js/ui-init.js';
 import { esc } from './js/app.js';
 import { toast } from './js/toast.js';
 import { confirm } from './js/confirm.js';
-import { getRooms, createRoom, joinRoom } from './js/rooms.js';
+import { getRooms, createRoom, joinRoom, deleteRoom } from './js/rooms.js';
 import { initPage } from './js/page-init.js';
 
 await initPage({ onLangChange: () => { renderI18n(); document.title = t('appName') + ' — ' + t('studyRooms'); } });
 document.title = t('appName') + ' — ' + t('studyRooms');
 
+const { data: { user } } = await sb.auth.getUser();
 const listEl = document.getElementById('room-list');
 const emptyEl = document.getElementById('empty-state');
 const createForm = document.getElementById('create-form');
@@ -147,11 +148,31 @@ async function loadRooms() {
   rooms.forEach(room => {
     const card = document.createElement('div');
     card.className = 'room-card';
+    const isCreator = user && room.created_by === user.id;
     card.innerHTML = `
       <div class="room-name">${esc(room.name)}</div>
       <div class="room-meta">${t('roomInviteCode')}: <strong>${esc(room.invite_code)}</strong></div>
+      ${isCreator ? `<button class="room-card-delete" title="${t('deleteRoom')}" aria-label="${t('deleteRoom')} ${esc(room.name)}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+      </button>` : ''}
     `;
     card.addEventListener('click', () => { window.location.href = 'room.html?id=' + room.id; });
+
+    if (isCreator) {
+      const deleteBtn = card.querySelector('.room-card-delete');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const ok = await confirm(t('deleteRoomConfirm'));
+          if (!ok) return;
+          const { error } = await deleteRoom(room.id);
+          if (error) return toast('Failed to delete room.', 'error');
+          toast('Room deleted.', 'success');
+          await loadRooms();
+        });
+      }
+    }
+
     listEl.appendChild(card);
   });
 }

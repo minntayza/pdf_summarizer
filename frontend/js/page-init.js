@@ -7,6 +7,7 @@ import { injectControlBar } from './shared-ui.js';
 import { initUI, renderI18n } from './ui-init.js';
 import { t } from './i18n.js';
 import { confirm } from './confirm.js';
+import { renderStreak } from './streak.js';
 
 // ── Page Init ─────────────────────────────────────────────
 // requireAuth: true  → protected pages (redirect to login if no session)
@@ -14,6 +15,7 @@ import { confirm } from './confirm.js';
 // Returns { user, session } for pages that need them.
 export async function initPage({ onLangChange, requireAuth = true }) {
   injectControlBar();
+  renderStreak('streak-display');
 
   let session = null;
   let user = null;

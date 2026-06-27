@@ -9,7 +9,7 @@
 </script>
 <title>Smart PDF Summarizer — View Document</title>
 <meta name="description" content="View AI-generated study notes, key points, and flashcards."/>
-<link rel="stylesheet" href="css/style.css?v=3"/>
+<link rel="stylesheet" href="css/style.css?v=4"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -75,7 +75,7 @@
 import { sb } from './js/supabase-client.js';
 import { t } from './js/i18n.js';
 import { renderI18n, initTabs, switchTab } from './js/ui-init.js';
-import { esc, md2html, fmtDate, parseFlashcards, renderFlashcards, parseQuiz, renderQuiz, downloadBlob } from './js/app.js';
+import { esc, md2html, fmtDate, parseFlashcards, renderFlashcards, parseQuiz, renderQuiz, downloadBlob, stripMdBoilerplate, isIncompleteOutput } from './js/app.js';
 import { toast } from './js/toast.js';
 import { renderChat, sendChatMessage, getChatHistory, appendMessage, showTypingIndicator, removeTypingIndicator } from './js/chat.js';
 import { initPage } from './js/page-init.js';
@@ -89,8 +89,17 @@ document.title = t('appName');
 
 function showErr(msg) { document.getElementById('err-box').classList.add('show'); document.getElementById('err-text').textContent = msg; }
 
+function renderMdPanel(el, raw, emptyMsg) {
+  if (isIncompleteOutput(raw)) {
+    el.innerHTML = `<div class="empty-state"><p>${esc(emptyMsg || t('processingIncomplete'))}</p><a href="upload.html" class="btn btn-accent btn-sm">${esc(t('newPDF'))}</a></div>`;
+    return;
+  }
+  const body = stripMdBoilerplate(raw);
+  el.innerHTML = body ? md2html(body) : `<div class="empty-state"><p>${esc(emptyMsg || t('contentMissing'))}</p></div>`;
+}
+
 const loadingEl = document.getElementById('loading-state'), resultsEl = document.getElementById('results');
-const { data: doc, error } = await sb.from('documents').select('*').eq('id', docId).single();
+const { data: doc, error } = await sb.from('documents').select('id,filename,provider,status,error_msg,page_count,word_count,flashcard_count,quiz_count,language,subject_id,user_id,created_at,output_prefix').eq('id', docId).single();
 
 if (error || !doc) {
   loadingEl.style.display = 'none';
@@ -128,21 +137,29 @@ if (error || !doc) {
     ]);
     if (sRes.data) {
       rawSummary = await sRes.data.text();
-      document.getElementById('c-summary').innerHTML = md2html(rawSummary.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+      renderMdPanel(document.getElementById('c-summary'), rawSummary);
     } else if (sRes.error) { console.error('Failed to load summary:', sRes.error); downloadFailed = true; }
     if (kRes.data) {
       rawKeyPoints = await kRes.data.text();
-      document.getElementById('c-keypoints').innerHTML = md2html(rawKeyPoints.replace(/^# .*\n/,'').replace(/---[\s\S]*$/,''));
+      renderMdPanel(document.getElementById('c-keypoints'), rawKeyPoints);
     } else if (kRes.error) { console.error('Failed to load key points:', kRes.error); downloadFailed = true; }
     if (fRes.data) {
       rawFlashcards = await fRes.data.text();
       const cards = parseFlashcards(rawFlashcards);
-      renderFlashcards(document.getElementById('c-flashcards'), cards, t);
+      if (cards.length === 0) {
+        document.getElementById('c-flashcards').innerHTML = `<div class="empty-state"><p>${esc(t('contentMissing'))}</p></div>`;
+      } else {
+        renderFlashcards(document.getElementById('c-flashcards'), cards, t);
+      }
     } else if (fRes.error) { console.error('Failed to load flashcards:', fRes.error); downloadFailed = true; }
     if (qRes.data) {
       rawQuiz = await qRes.data.text();
       const quizQuestions = parseQuiz(rawQuiz);
-      renderQuiz(document.getElementById('c-quiz'), quizQuestions, t);
+      if (quizQuestions.length === 0) {
+        document.getElementById('c-quiz').innerHTML = `<div class="empty-state"><p>${esc(t('contentMissing'))}</p></div>`;
+      } else {
+        renderQuiz(document.getElementById('c-quiz'), quizQuestions, t);
+      }
     }
   } catch (downErr) {
     downloadFailed = true;

@@ -116,6 +116,7 @@ const TRANSLATIONS = {
     subjectColor: "Color",
     noSubject: "No Subject",
     allSubjects: "All",
+    searchDocs: "Search your documents…",
     deleteSubjectConfirm: "Delete this subject? Documents will keep their content.",
 
     // Quiz
@@ -155,6 +156,17 @@ const TRANSLATIONS = {
     langKorean: "Korean",
     langThai: "Thai",
 
+    // Provider capabilities
+    capClaudeProxy: "Custom proxy — English recommended for best speed. Vision mode disabled. May timeout on large PDFs.",
+    capGemini: "Direct API — all languages supported, vision mode available",
+    langSlowWarning: "Non-English output may take 5–10 minutes with this proxy",
+    proxySlowWarning: "Proxy is slow — processing may take 5–8 minutes",
+    geminiNotConfigured: "Gemini is not set up yet. Use Claude for now.",
+    errProxy502: "Claude proxy is temporarily down (502). Wait a few minutes and retry, or use a smaller PDF.",
+    errProxyTimeout: "Processing timed out — the proxy was too slow. Try a smaller PDF or retry later.",
+    processingIncomplete: "AI processing did not finish — the proxy timed out before generating content. Please re-upload this PDF.",
+    contentMissing: "No content was generated for this section.",
+
     // Study Rooms
     studyRooms: "Study Rooms",
     createRoom: "Create Room",
@@ -173,8 +185,10 @@ const TRANSLATIONS = {
     copied: "Copied!",
     leaveRoom: "Leave Room",
     deleteRoom: "Delete Room",
+    removeDoc: "Remove",
     leaveRoomConfirm: "Leave this study room?",
     deleteRoomConfirm: "Delete this study room? This cannot be undone.",
+    removeDocConfirm: "Remove this document from the room?",
     alreadyMember: "You are already a member of this room.",
     joinedRoom: "Joined room successfully!",
     roomNotFound: "Room not found.",
@@ -296,6 +310,7 @@ const TRANSLATIONS = {
     subjectColor: "အရောင်",
     noSubject: "ဘာသာရပ်မရှိ",
     allSubjects: "အားလုံး",
+    searchDocs: "စာရွက်စာတမ်းများ ရှာဖွေပါ…",
     deleteSubjectConfirm: "ဤဘာသာရပ်ကို ဖျက်မှာလား။ စာရွက်များကတော့ ကျန်နေပါမည်။",
 
     // Quiz
@@ -335,6 +350,17 @@ const TRANSLATIONS = {
     langKorean: "ကိုရီးယား",
     langThai: "ထိုင်း",
 
+    // Provider capabilities
+    capClaudeProxy: "Custom proxy — အင်္ဂလိပ်ဖြင့် အမြန်ဆုံး။ Vision mode ပိတ်ထားသည်။ PDF ကြီးများ timeout ဖြစ်နိုင်သည်။",
+    capGemini: "တိုက်ရိုက် API — ဘာသာစကားအားလုံး ပံ့ပိုးသည်၊ Vision mode ရနိုင်သည်",
+    langSlowWarning: "ဤ proxy ဖြင့် အင်္ဂလိပ်မဟုတ်သော ထုတ်ယူမှုသည် ၅-၁၀ မိနစ် ကြာနိုင်သည်",
+    proxySlowWarning: "Proxy နှေးသည် — လုပ်ဆောင်ချက် ၅-၈ မိနစ် ကြာနိုင်သည်",
+    geminiNotConfigured: "Gemini မသတ်မှတ်ရသေးပါ။ Claude ကို သုံးပါ။",
+    errProxy502: "Claude proxy ယာယီ down ဖြစ်နေသည် (502)။ မိနစ်အနည်းငယ် စောင့်ပြီး ထပ်စမ်းပါ၊ သို့မဟုတ် PDF သေးသေးတစ်ခု သုံးပါ။",
+    errProxyTimeout: "Processing timeout — proxy နှေးလွန်းသည်။ PDF သေးသေးတစ်ခု သုံးပါ သို့မဟုတ် နောက်မှ ထပ်စမ်းပါ။",
+    processingIncomplete: "AI processing မပြီးမြောက်ပါ — proxy timeout ဖြစ်သွားသည်။ PDF ကို ပြန်တင်ပါ။",
+    contentMissing: "ဤ section အတွက် content မထွက်ပါ။",
+
     // Study Rooms
     studyRooms: "စာလေ့လာခန်းများ",
     createRoom: "ခန်းမဖန်တီးမည်",
@@ -353,8 +379,10 @@ const TRANSLATIONS = {
     copied: "ကူးပြီးပါပြီ!",
     leaveRoom: "ခန်းမထွက်မည်",
     deleteRoom: "ခန်းမဖျက်မည်",
+    removeDoc: "ဖျက်မည်",
     leaveRoomConfirm: "ဤစာလေ့လာခန်းမှ ထွက်မှာလား?",
     deleteRoomConfirm: "ဤစာလေ့လာခန်းကို ဖျက်မှာလား? ပြန်ပြင်၍မရပါ။",
+    removeDocConfirm: "ဤစာရွက်ကို ခန်းမှ ဖျက်မှာလား?",
     alreadyMember: "သင်သည် ဤခန်းမ၏ အဖွဲ့ဝင်ဖြစ်ပြီးသားပါ။",
     joinedRoom: "ခန်းမသို့ ဝင်ပြီးပါပြီ!",
     roomNotFound: "ခန်းမမတွေ့ပါ။",

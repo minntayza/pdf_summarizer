@@ -7,7 +7,7 @@
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Review</title>
-<link rel="stylesheet" href="css/style.css?v=3"/>
+<link rel="stylesheet" href="css/style.css?v=4"/>
 <script type="importmap">
 { "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
 </script>
@@ -46,6 +46,7 @@ import { esc, parseFlashcards } from './js/app.js';
 import { toast } from './js/toast.js';
 import { getDueCards, recordReview, getAllReviews } from './js/srs.js';
 import { initPage } from './js/page-init.js';
+import { recordActivity } from './js/streak.js';
 
 await initPage({ onLangChange: () => { renderI18n(); document.title = t('appName') + ' — ' + t('review'); } });
 document.title = t('appName') + ' — ' + t('review');
@@ -59,7 +60,7 @@ const loadingEl = document.getElementById('loading-state');
 function showErr(msg) { document.getElementById('err-box').classList.add('show'); document.getElementById('err-text').textContent = msg; }
 
 // Load document and flashcards
-const { data: doc, error: docErr } = await sb.from('documents').select('*').eq('id', docId).single();
+const { data: doc, error: docErr } = await sb.from('documents').select('id,filename,provider,status,error_msg,page_count,word_count,flashcard_count,quiz_count,language,subject_id,user_id,created_at,output_prefix').eq('id', docId).single();
 if (docErr || !doc || doc.status !== 'done') {
   loadingEl.style.display = 'none';
   showErr('Document not found or not ready.');
@@ -155,6 +156,7 @@ if (docErr || !doc || doc.status !== 'done') {
           btn.addEventListener('click', async () => {
             const quality = parseInt(btn.dataset.quality);
             await recordReview(docId, item.index, quality);
+            recordActivity(); // update daily study streak
             currentIndex++;
             renderReviewCard();
           });
