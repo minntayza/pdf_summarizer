@@ -1,0 +1,105 @@
+/* Sketch Theme: Modern Premium
+   Black + Warm Gold, sharp edges, subtle depth
+   Fonts: EB Garamond (headings) + Atkinson Hyperlegible (body)
+*/
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=EB+Garamond:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Surface */
+  --color-bg: #faf9f6;
+  --color-surface: #ffffff;
+  --color-surface-2: #f4f2ee;
+  --color-border: #e6e3dd;
+  --color-border-strong: #d5d1c9;
+
+  /* Brand */
+  --color-primary: #171717;
+  --color-primary-2: #2d2d2d;
+  --color-accent: #A16207;
+  --color-accent-hover: #8a5406;
+  --color-accent-bg: rgba(161,98,7,.06);
+  --color-accent-border: rgba(161,98,7,.2);
+
+  /* Semantic */
+  --color-success: #166534;
+  --color-danger: #b91c1c;
+  --color-danger-bg: rgba(185,28,28,.05);
+  --color-warning: #92400e;
+  --color-warning-bg: rgba(146,64,14,.06);
+
+  /* Text */
+  --color-text: #171717;
+  --color-text-muted: #6b6156;
+  --color-text-dim: #b0a99d;
+
+  /* Typography */
+  --font-heading: 'EB Garamond', serif;
+  --font-body: 'Atkinson Hyperlegible', sans-serif;
+  --text-xs: 0.72rem;
+  --text-sm: 0.82rem;
+  --text-base: 0.92rem;
+  --text-lg: 1.02rem;
+  --text-xl: 1.2rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Shapes */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+
+  /* Shadows — subtle, sharp */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 8px rgba(0,0,0,.06), 0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.08), 0 4px 8px rgba(0,0,0,.04);
+  --shadow-glow: 0 0 20px rgba(161,98,7,.12);
+
+  /* Transitions */
+  --ease: cubic-bezier(.4,0,.2,1);
+  --duration: 0.2s;
+}
+
+[data-theme="dark"] {
+  --color-bg: #141210;
+  --color-surface: #1c1a17;
+  --color-surface-2: #24211d;
+  --color-border: #302d28;
+  --color-border-strong: #403c36;
+
+  --color-primary: #faf9f6;
+  --color-primary-2: #d5d1c9;
+  --color-accent: #d4a853;
+  --color-accent-hover: #c49a45;
+  --color-accent-bg: rgba(212,168,83,.08);
+  --color-accent-border: rgba(212,168,83,.2);
+
+  --color-success: #4ade80;
+  --color-danger: #f87171;
+  --color-danger-bg: rgba(248,113,113,.06);
+  --color-warning: #fbbf24;
+  --color-warning-bg: rgba(251,191,36,.06);
+
+  --color-text: #f0ede7;
+  --color-text-muted: #93897b;
+  --color-text-dim: #5c5448;
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.15);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.2);
+  --shadow-md: 0 4px 8px rgba(0,0,0,.25);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.35);
+  --shadow-glow: 0 0 20px rgba(212,168,83,.15);
+}
