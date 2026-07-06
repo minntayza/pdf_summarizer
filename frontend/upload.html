@@ -184,7 +184,7 @@
       <div class="res-title"><div class="dot-ok"></div><span data-i18n="analysisComplete">Analysis Complete</span> <span class="provider-badge" id="result-badge">Claude</span></div>
       <div class="res-actions">
         <a class="btn btn-ghost btn-sm" id="view-link" href="#"><span data-i18n="viewFullPage">View full page →</span></a>
-        <button class="btn btn-ghost btn-sm" onclick="location.reload()" data-i18n="newPDF">New PDF</button>
+        <button class="btn btn-ghost btn-sm" id="new-pdf-btn" data-i18n="newPDF">New PDF</button>
       </div>
     </div>
     <div class="stats" id="stats"></div>
@@ -619,6 +619,9 @@ document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => switchTab(tab));
 });
 initTabs();
+
+// New PDF button — reload page
+document.getElementById('new-pdf-btn').addEventListener('click', () => location.reload());
 
 // Chat initialization
 async function initChat(docId) {
