@@ -3,7 +3,7 @@
 
 import { sb } from './supabase-client.js';
 import { getSession, getUser, redirectIfAuth } from './auth.js';
-import { injectControlBar } from './shared-ui.js';
+import { injectControlBar, highlightNavLink } from './shared-ui.js';
 import { initUI, renderI18n } from './ui-init.js';
 import { t } from './i18n.js';
 import { confirm } from './confirm.js';
@@ -54,6 +54,7 @@ export async function initPage({ onLangChange, requireAuth = true }) {
 
   initUI(onLangChange || renderI18n);
   renderI18n();
+  highlightNavLink();
 
   return { session, user };
 }

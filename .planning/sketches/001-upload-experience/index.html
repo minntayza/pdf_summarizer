@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sketch 001: Upload Experience</title>
+<link rel="stylesheet" href="../themes/default.css"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-body); background: var(--color-bg); color: var(--color-text); min-height: 100vh; }
+  html { font-size: 18px; }
+
+  /* Variant tab bar */
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+    background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+    padding: 10px 20px; display: flex; gap: 8px; font-family: system-ui;
+  }
+  .variant-tab {
+    padding: 8px 16px; border-radius: var(--radius-full); border: 1px solid var(--color-border);
+    background: transparent; color: var(--color-text-muted); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all var(--duration) var(--ease);
+  }
+  .variant-tab:hover { border-color: var(--color-accent); color: var(--color-text); }
+  .variant-tab.active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+  .variant { display: none; padding-top: 60px; min-height: 100vh; }
+  .variant.active { display: block; }
+
+  /* ─── VARIANT A: Clean Card ─── */
+  .va-wrap { max-width: 580px; margin: 0 auto; padding: 48px 24px 96px; }
+  .va-header { text-align: center; margin-bottom: 40px; }
+  .va-title { font-family: var(--font-heading); font-size: 2rem; font-weight: 700; margin-bottom: 6px; }
+  .va-title span { color: var(--color-accent); }
+  .va-sub { color: var(--color-text-muted); font-size: .92rem; font-style: italic; }
+
+  .va-card {
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); padding: 36px;
+    box-shadow: var(--shadow-sm); transition: box-shadow var(--duration) var(--ease);
+  }
+  .va-card:hover { box-shadow: var(--shadow-md); }
+
+  .va-settings { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; }
+  .va-field { flex: 1; min-width: 140px; }
+  .va-field label { display: block; font-size: .78rem; font-weight: 600; margin-bottom: 6px; color: var(--color-text); }
+  .va-field select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-xs); background: var(--color-bg); color: var(--color-text);
+    font-family: var(--font-body); font-size: .88rem; outline: none;
+    transition: border-color var(--duration) var(--ease);
+  }
+  .va-field select:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-bg); }
+
+  .va-provider-label { font-size: .78rem; font-weight: 600; margin-bottom: 10px; display: block; }
+  .va-providers { display: flex; gap: 10px; margin-bottom: 24px; }
+  .va-prov {
+    flex: 1; padding: 14px 16px; border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-strong); background: var(--color-surface-2);
+    cursor: pointer; transition: all var(--duration) var(--ease); text-align: center;
+  }
+  .va-prov:hover { border-color: var(--color-accent); }
+  .va-prov.active { border-color: var(--color-accent); background: var(--color-accent-bg); box-shadow: var(--shadow-xs); }
+  .va-prov-name { font-size: .88rem; font-weight: 600; display: block; }
+  .va-prov-sub { font-size: .72rem; color: var(--color-text-muted); display: block; margin-top: 2px; }
+
+  .va-dropzone {
+    border: 2px dashed var(--color-border-strong); border-radius: var(--radius-md);
+    padding: 48px 24px; text-align: center; cursor: pointer;
+    transition: all 0.25s var(--ease); background: var(--color-surface-2);
+  }
+  .va-dropzone:hover { border-color: var(--color-accent); background: var(--color-accent-bg); }
+  .va-dropzone .icon {
+    width: 52px; height: 52px; margin: 0 auto 14px; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-accent); background: var(--color-accent-bg);
+    transition: transform 0.3s var(--ease);
+  }
+  .va-dropzone:hover .icon { transform: translateY(-3px) scale(1.06); }
+  .va-dropzone .icon svg { width: 28px; height: 28px; }
+  .va-drop-title { font-size: 1rem; font-weight: 600; font-family: var(--font-heading); margin-bottom: 4px; }
+  .va-drop-sub { font-size: .86rem; color: var(--color-text-muted); }
+
+  .va-submit { margin-top: 24px; text-align: right; }
+  .va-btn {
+    padding: 12px 28px; border-radius: var(--radius-sm); font-size: .92rem; font-weight: 600;
+    border: none; cursor: pointer; transition: all var(--duration) var(--ease);
+    font-family: var(--font-body);
+  }
+  .va-btn-accent { background: var(--color-accent); color: #fff; box-shadow: var(--shadow-sm); }
+  .va-btn-accent:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .va-btn-accent:disabled { opacity: .35; pointer-events: none; }
+
+  /* Progress state */
+  .va-progress { display: none; margin-top: 24px; }
+  .va-progress.show { display: block; }
+  .va-prog-head { display: flex; justify-content: space-between; margin-bottom: 12px; }
+  .va-prog-name { font-weight: 600; font-size: .92rem; }
+  .va-prog-pct { font-weight: 700; color: var(--color-accent); font-variant-numeric: tabular-nums; }
+  .va-bar-track { height: 4px; background: var(--color-surface-2); border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
+  .va-bar-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 60%, #fff), var(--color-accent));
+    background-size: 200% 100%; animation: shimmer 1.8s ease-in-out infinite;
+    transition: width 0.45s var(--ease); width: 0%;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .va-prog-msg { font-size: .86rem; color: var(--color-text-muted); display: flex; align-items: center; gap: 8px; }
+  .va-spinner {
+    width: 14px; height: 14px; border: 2px solid var(--color-border-strong);
+    border-top-color: var(--color-accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Phase pipeline */
+  .va-phases {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; margin: 20px 0 16px; flex-wrap: wrap;
+  }
+  .va-phase {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; opacity: .38;
+    transition: opacity 0.35s;
+  }
+  .va-phase.active { opacity: 1; }
+  .va-phase.done { opacity: .85; }
+  .va-phase-dot {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--color-border-strong); background: var(--color-surface);
+    color: var(--color-text-muted); transition: all 0.4s;
+  }
+  .va-phase.active .va-phase-dot {
+    border-color: var(--color-accent); box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+  .va-phase.done .va-phase-dot { border-color: var(--color-accent); background: var(--color-accent); color: #fff; }
+  .va-phase-dot svg { width: 14px; height: 14px; }
+  .va-phase-label { font-size: .72rem; font-weight: 500; color: var(--color-text-muted); white-space: nowrap; }
+  .va-phase-line { width: 24px; height: 1.5px; background: var(--color-border-strong); margin: 0 4px 18px; transition: background 0.5s; }
+  .va-phase-line.done { background: var(--color-accent); }
+
+  /* ─── VARIANT B: Split Panel ─── */
+  .vb-wrap { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+  @media (max-width: 768px) { .vb-wrap { grid-template-columns: 1fr; } }
+  .vb-left {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 48px 32px; background: var(--color-surface); border-right: 1px solid var(--color-border);
+  }
+  @media (max-width: 768px) { .vb-left { border-right: none; border-bottom: 1px solid var(--color-border); min-height: 50vh; } }
+  .vb-right { padding: 48px 32px; display: flex; flex-direction: column; justify-content: center; }
+
+  .vb-dropzone {
+    width: 100%; max-width: 400px; border: 2px dashed var(--color-border-strong);
+    border-radius: var(--radius-lg); padding: 56px 32px; text-align: center;
+    cursor: pointer; transition: all 0.25s var(--ease); background: var(--color-surface-2);
+    position: relative; overflow: hidden;
+  }
+  .vb-dropzone::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 50%, var(--color-accent-bg), transparent 70%);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .vb-dropzone:hover::before { opacity: 1; }
+  .vb-dropzone:hover { border-color: var(--color-accent); }
+  .vb-dropzone .icon {
+    width: 64px; height: 64px; margin: 0 auto 16px; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-accent); background: var(--color-accent-bg);
+    position: relative; z-index: 1;
+  }
+  .vb-dropzone .icon svg { width: 32px; height: 32px; }
+  .vb-drop-title { font-size: 1.1rem; font-weight: 600; font-family: var(--font-heading); margin-bottom: 4px; position: relative; z-index: 1; }
+  .vb-drop-sub { font-size: .86rem; color: var(--color-text-muted); position: relative; z-index: 1; }
+
+  .vb-section { margin-bottom: 28px; }
+  .vb-section-title { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-text-muted); margin-bottom: 10px; }
+
+  .vb-providers { display: flex; gap: 10px; }
+  .vb-prov {
+    flex: 1; padding: 16px; border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-strong); background: var(--color-surface);
+    cursor: pointer; transition: all var(--duration) var(--ease); text-align: center;
+  }
+  .vb-prov:hover { border-color: var(--color-accent); }
+  .vb-prov.active { border-color: var(--color-accent); background: var(--color-accent-bg); }
+  .vb-prov-name { font-size: .92rem; font-weight: 600; display: block; }
+  .vb-prov-sub { font-size: .72rem; color: var(--color-text-muted); display: block; margin-top: 2px; }
+
+  .vb-fields { display: flex; flex-direction: column; gap: 16px; }
+  .vb-field label { display: block; font-size: .78rem; font-weight: 600; margin-bottom: 6px; }
+  .vb-field select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-xs); background: var(--color-surface-2); color: var(--color-text);
+    font-family: var(--font-body); font-size: .88rem; outline: none;
+  }
+  .vb-field select:focus { border-color: var(--color-accent); }
+
+  .vb-btn {
+    width: 100%; padding: 14px; border-radius: var(--radius-sm); font-size: .95rem; font-weight: 600;
+    border: none; cursor: pointer; transition: all var(--duration) var(--ease);
+    font-family: var(--font-body); margin-top: 8px;
+  }
+  .vb-btn-accent { background: var(--color-accent); color: #fff; }
+  .vb-btn-accent:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+  /* ─── VARIANT C: Cinematic ─── */
+  .vc-wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 120px; }
+  .vc-header { text-align: center; margin-bottom: 48px; }
+  .vc-title { font-family: var(--font-heading); font-size: 2.4rem; font-weight: 700; margin-bottom: 8px; }
+  .vc-title span { color: var(--color-accent); }
+  .vc-sub { color: var(--color-text-muted); font-size: 1rem; font-style: italic; max-width: 440px; margin: 0 auto; }
+
+  .vc-hero {
+    border: 2px dashed var(--color-border-strong); border-radius: var(--radius-lg);
+    padding: 72px 40px; text-align: center; cursor: pointer;
+    transition: all 0.3s var(--ease); background: var(--color-surface);
+    box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+  }
+  .vc-hero::before {
+    content: ''; position: absolute; inset: -2px;
+    background: linear-gradient(135deg, var(--color-accent), transparent 40%, transparent 60%, var(--color-accent));
+    border-radius: var(--radius-lg); opacity: 0; transition: opacity 0.4s; z-index: 0;
+  }
+  .vc-hero::after {
+    content: ''; position: absolute; inset: 1px;
+    background: var(--color-surface); border-radius: calc(var(--radius-lg) - 1px); z-index: 0;
+  }
+  .vc-hero > * { position: relative; z-index: 1; }
+  .vc-hero:hover::before { opacity: .15; }
+  .vc-hero:hover { border-color: var(--color-accent); box-shadow: var(--shadow-glow); }
+  .vc-hero .icon {
+    width: 72px; height: 72px; margin: 0 auto 20px; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--color-accent); background: var(--color-accent-bg);
+    transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease);
+  }
+  .vc-hero:hover .icon { transform: translateY(-4px) scale(1.08); box-shadow: var(--shadow-glow); }
+  .vc-hero .icon svg { width: 36px; height: 36px; }
+  .vc-drop-title { font-size: 1.2rem; font-weight: 600; font-family: var(--font-heading); margin-bottom: 6px; }
+  .vc-drop-sub { font-size: .92rem; color: var(--color-text-muted); }
+
+  .vc-bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--color-border);
+    padding: 14px 24px; display: flex; align-items: center; gap: 16px;
+    justify-content: center; flex-wrap: wrap;
+  }
+  .vc-bar-group { display: flex; align-items: center; gap: 8px; }
+  .vc-bar-label { font-size: .72rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .03em; }
+  .vc-bar-pills { display: flex; gap: 6px; }
+  .vc-pill {
+    padding: 6px 14px; border-radius: var(--radius-full); font-size: .78rem; font-weight: 600;
+    border: 1px solid var(--color-border-strong); background: transparent;
+    color: var(--color-text-muted); cursor: pointer; transition: all var(--duration) var(--ease);
+  }
+  .vc-pill:hover { border-color: var(--color-accent); color: var(--color-text); }
+  .vc-pill.active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+  .vc-bar-divider { width: 1px; height: 24px; background: var(--color-border); }
+  .vc-bar-btn {
+    padding: 10px 24px; border-radius: var(--radius-full); font-size: .88rem; font-weight: 600;
+    border: none; cursor: pointer; transition: all var(--duration) var(--ease);
+    font-family: var(--font-body);
+  }
+  .vc-bar-btn-accent { background: var(--color-accent); color: #fff; }
+  .vc-bar-btn-accent:hover { filter: brightness(1.1); transform: scale(1.03); }
+
+  /* Progress for variant C */
+  .vc-progress { display: none; margin-top: 40px; text-align: center; }
+  .vc-progress.show { display: block; }
+  .vc-ring {
+    width: 100px; height: 100px; margin: 0 auto 20px; position: relative;
+  }
+  .vc-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .vc-ring-bg { fill: none; stroke: var(--color-border); stroke-width: 6; }
+  .vc-ring-fill {
+    fill: none; stroke: var(--color-accent); stroke-width: 6;
+    stroke-linecap: round; stroke-dasharray: 283; stroke-dashoffset: 283;
+    transition: stroke-dashoffset 0.6s var(--ease);
+  }
+  .vc-ring-text {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; font-weight: 700; color: var(--color-accent); font-variant-numeric: tabular-nums;
+  }
+  .vc-prog-msg { font-size: .92rem; color: var(--color-text-muted); }
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <button class="variant-tab active" onclick="showVariant('a')">A: Clean Card</button>
+  <button class="variant-tab" onclick="showVariant('b')">B: Split Panel</button>
+  <button class="variant-tab" onclick="showVariant('c')">C: Cinematic</button>
+</div>
+
+<!-- ═══ VARIANT A: Clean Card ═══ -->
+<div id="variant-a" class="variant active">
+  <div class="va-wrap">
+    <div class="va-header">
+      <div class="va-title">Upload <span>Lecture PDF</span></div>
+      <p class="va-sub">Drop a PDF and let AI turn it into study notes.</p>
+    </div>
+
+    <div class="va-card" id="va-card">
+      <div class="va-settings">
+        <div class="va-field">
+          <label>Subject</label>
+          <select><option>No Subject</option><option>Mathematics</option><option>Computer Science</option></select>
+        </div>
+        <div class="va-field">
+          <label>Output Language</label>
+          <select><option>English</option><option>Myanmar</option><option>Chinese</option></select>
+        </div>
+      </div>
+
+      <label class="va-provider-label">AI Provider</label>
+      <div class="va-providers">
+        <div class="va-prov active" onclick="toggleProv(this)">
+          <span class="va-prov-name">Claude</span>
+          <span class="va-prov-sub">via custom proxy</span>
+        </div>
+        <div class="va-prov" onclick="toggleProv(this)">
+          <span class="va-prov-name">Gemini</span>
+          <span class="va-prov-sub">gemini-2.0-flash · ready</span>
+        </div>
+      </div>
+
+      <div class="va-dropzone" onclick="simulateUpload('va')">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y1="15"/></svg></div>
+        <div class="va-drop-title">Drop your lecture PDF here</div>
+        <div class="va-drop-sub">or click to browse — max 25 MB</div>
+      </div>
+
+      <div class="va-progress" id="va-progress">
+        <div class="va-phases">
+          <div class="va-phase active" data-p="0"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div><span class="va-phase-label">Upload</span></div>
+          <div class="va-phase-line"></div>
+          <div class="va-phase" data-p="1"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><span class="va-phase-label">Summary</span></div>
+          <div class="va-phase-line"></div>
+          <div class="va-phase" data-p="2"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg></div><span class="va-phase-label">Key Points</span></div>
+          <div class="va-phase-line"></div>
+          <div class="va-phase" data-p="3"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><span class="va-phase-label">Flashcards</span></div>
+          <div class="va-phase-line"></div>
+          <div class="va-phase" data-p="4"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><span class="va-phase-label">Quiz</span></div>
+        </div>
+        <div class="va-prog-head"><span class="va-prog-name">lecture-notes.pdf</span><span class="va-prog-pct" id="va-pct">0%</span></div>
+        <div class="va-bar-track"><div class="va-bar-fill" id="va-bar"></div></div>
+        <div class="va-prog-msg"><div class="va-spinner"></div><span id="va-msg">Uploading PDF...</span></div>
+      </div>
+
+      <div class="va-submit">
+        <button class="va-btn va-btn-accent" id="va-submit" disabled>Analyze PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VARIANT B: Split Panel ═══ -->
+<div id="variant-b" class="variant">
+  <div class="vb-wrap">
+    <div class="vb-left">
+      <div class="vb-dropzone" onclick="simulateUpload('vb')">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y1="15"/></svg></div>
+        <div class="vb-drop-title">Drop your lecture PDF</div>
+        <div class="vb-drop-sub">or click to browse — max 25 MB</div>
+      </div>
+    </div>
+    <div class="vb-right">
+      <div style="max-width:360px;margin:0 auto;width:100%">
+        <h2 style="font-family:var(--font-heading);font-size:1.5rem;margin-bottom:8px">Upload <span style="color:var(--color-accent)">Lecture PDF</span></h2>
+        <p style="color:var(--color-text-muted);font-size:.88rem;margin-bottom:32px;font-style:italic">Configure and upload.</p>
+
+        <div class="vb-section">
+          <div class="vb-section-title">AI Provider</div>
+          <div class="vb-providers">
+            <div class="vb-prov active" onclick="toggleProv(this)">
+              <span class="vb-prov-name">Claude</span>
+              <span class="vb-prov-sub">via proxy</span>
+            </div>
+            <div class="vb-prov" onclick="toggleProv(this)">
+              <span class="vb-prov-name">Gemini</span>
+              <span class="vb-prov-sub">ready</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="vb-section">
+          <div class="vb-section-title">Settings</div>
+          <div class="vb-fields">
+            <div class="vb-field"><label>Subject</label><select><option>No Subject</option><option>Mathematics</option></select></div>
+            <div class="vb-field"><label>Output Language</label><select><option>English</option><option>Myanmar</option></select></div>
+          </div>
+        </div>
+
+        <button class="vb-btn vb-btn-accent" disabled>Analyze PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VARIANT C: Cinematic ═══ -->
+<div id="variant-c" class="variant">
+  <div class="vc-wrap">
+    <div class="vc-header">
+      <div class="vc-title">Upload <span>Lecture PDF</span></div>
+      <p class="vc-sub">Drop a PDF and let AI turn it into study notes.</p>
+    </div>
+
+    <div class="vc-hero" onclick="simulateUploadC()">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y1="15"/></svg></div>
+      <div class="vc-drop-title">Drop your lecture PDF here</div>
+      <div class="vc-drop-sub">or click to browse — max 25 MB</div>
+    </div>
+
+    <div class="vc-progress" id="vc-progress">
+      <div class="vc-ring">
+        <svg viewBox="0 0 100 100"><circle class="vc-ring-bg" cx="50" cy="50" r="45"/><circle class="vc-ring-fill" id="vc-ring" cx="50" cy="50" r="45"/></svg>
+        <div class="vc-ring-text" id="vc-pct">0%</div>
+      </div>
+      <div class="va-phases" style="margin-bottom:20px">
+        <div class="va-phase active"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div><span class="va-phase-label">Upload</span></div>
+        <div class="va-phase-line"></div>
+        <div class="va-phase"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><span class="va-phase-label">Summary</span></div>
+        <div class="va-phase-line"></div>
+        <div class="va-phase"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg></div><span class="va-phase-label">Key Points</span></div>
+        <div class="va-phase-line"></div>
+        <div class="va-phase"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><span class="va-phase-label">Flashcards</span></div>
+        <div class="va-phase-line"></div>
+        <div class="va-phase"><div class="va-phase-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><span class="va-phase-label">Quiz</span></div>
+      </div>
+      <p class="vc-prog-msg" id="vc-msg">Uploading PDF...</p>
+    </div>
+  </div>
+
+  <div class="vc-bottom-bar">
+    <div class="vc-bar-group">
+      <span class="vc-bar-label">Provider</span>
+      <div class="vc-bar-pills">
+        <button class="vc-pill active" onclick="toggleBarPill(this)">Claude</button>
+        <button class="vc-pill" onclick="toggleBarPill(this)">Gemini</button>
+      </div>
+    </div>
+    <div class="vc-bar-divider"></div>
+    <div class="vc-bar-group">
+      <span class="vc-bar-label">Subject</span>
+      <div class="vc-bar-pills">
+        <button class="vc-pill active" onclick="toggleBarPill(this)">None</button>
+        <button class="vc-pill" onclick="toggleBarPill(this)">Math</button>
+        <button class="vc-pill" onclick="toggleBarPill(this)">CS</button>
+      </div>
+    </div>
+    <div class="vc-bar-divider"></div>
+    <button class="vc-bar-btn vc-bar-btn-accent">Analyze PDF</button>
+  </div>
+</div>
+
+<script>
+function showVariant(id) {
+  document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.variant-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('variant-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function toggleProv(el) {
+  el.parentElement.querySelectorAll('.va-prov, .vb-prov').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function toggleBarPill(el) {
+  el.parentElement.querySelectorAll('.vc-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function simulateUpload(variant) {
+  const prog = document.getElementById(variant + '-progress');
+  if (!prog) return;
+  prog.classList.add('show');
+  let pct = 0;
+  const bar = document.getElementById(variant + '-bar');
+  const pctEl = document.getElementById(variant + '-pct');
+  const msgEl = document.getElementById(variant + '-msg');
+  const phases = prog.querySelectorAll('.va-phase');
+  const lines = prog.querySelectorAll('.va-phase-line');
+  const msgs = ['Uploading PDF...', 'Extracting text...', 'Calling AI...', 'Generating key points...', 'Creating flashcards...', 'Building quiz...', 'Done!'];
+  const iv = setInterval(() => {
+    pct += Math.random() * 8 + 2;
+    if (pct > 100) pct = 100;
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+    const pi = pct < 15 ? 0 : pct < 50 ? 1 : pct < 70 ? 2 : pct < 85 ? 3 : 4;
+    phases.forEach((ph, i) => { ph.classList.remove('active','done'); if (i < pi) ph.classList.add('done'); else if (i === pi) ph.classList.add('active'); });
+    lines.forEach((l, i) => l.classList.toggle('done', i < pi));
+    if (msgEl) msgEl.textContent = msgs[Math.min(pi, msgs.length - 1)];
+    if (pct >= 100) clearInterval(iv);
+  }, 400);
+}
+
+function simulateUploadC() {
+  const prog = document.getElementById('vc-progress');
+  if (!prog) return;
+  prog.classList.add('show');
+  let pct = 0;
+  const ring = document.getElementById('vc-ring');
+  const pctEl = document.getElementById('vc-pct');
+  const msgEl = document.getElementById('vc-msg');
+  const phases = prog.querySelectorAll('.va-phase');
+  const lines = prog.querySelectorAll('.va-phase-line');
+  const msgs = ['Uploading PDF...', 'Extracting text...', 'Calling AI...', 'Generating key points...', 'Creating flashcards...', 'Building quiz...', 'Done!'];
+  const circumference = 2 * Math.PI * 45;
+  const iv = setInterval(() => {
+    pct += Math.random() * 8 + 2;
+    if (pct > 100) pct = 100;
+    const offset = circumference - (pct / 100) * circumference;
+    if (ring) ring.style.strokeDashoffset = offset;
+    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+    const pi = pct < 15 ? 0 : pct < 50 ? 1 : pct < 70 ? 2 : pct < 85 ? 3 : 4;
+    phases.forEach((ph, i) => { ph.classList.remove('active','done'); if (i < pi) ph.classList.add('done'); else if (i === pi) ph.classList.add('active'); });
+    lines.forEach((l, i) => l.classList.toggle('done', i < pi));
+    if (msgEl) msgEl.textContent = msgs[Math.min(pi, msgs.length - 1)];
+    if (pct >= 100) clearInterval(iv);
+  }, 400);
+}
+</script>
+</body>
+</html>

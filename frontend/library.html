@@ -20,16 +20,7 @@
 <div class="wrap">
   <div class="top-bar">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a href="upload.html" class="btn btn-accent btn-sm">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span data-i18n="uploadNewPDF">Upload New PDF</span>
-      </a>
       <a href="subjects.html" class="btn btn-ghost btn-sm" data-i18n="subjects">Subjects</a>
-      <a href="rooms.html" class="btn btn-ghost btn-sm" data-i18n="studyRooms">Study Rooms</a>
-    </div>
-    <div class="user-info">
-      <span class="user-email" id="user-email"></span>
-      <button class="btn btn-danger btn-xs" id="logout-btn" data-i18n="logOut">Log out</button>
     </div>
   </div>
 
@@ -48,7 +39,7 @@
     </button>
   </div>
   <div class="subject-filter" id="subject-filter"></div>
-  <div class="doc-list" id="doc-list"></div>
+  <div class="doc-grid" id="doc-list"></div>
 
   <div class="empty-state" id="empty-state" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
@@ -57,10 +48,10 @@
     <a href="upload.html" class="btn btn-accent" data-i18n="uploadNewPDF">Upload PDF</a>
   </div>
 
-  <div id="loading-state">
-    <div class="skeleton-card"><div class="skeleton-row"><div class="skeleton skeleton-icon"></div><div class="skeleton-body"><div class="skeleton skeleton-line w-80"></div><div class="skeleton skeleton-line w-40 h-8"></div></div><div class="skeleton skeleton-pill"></div></div></div>
-    <div class="skeleton-card"><div class="skeleton-row"><div class="skeleton skeleton-icon"></div><div class="skeleton-body"><div class="skeleton skeleton-line w-60"></div><div class="skeleton skeleton-line w-40 h-8"></div></div><div class="skeleton skeleton-pill"></div></div></div>
-    <div class="skeleton-card"><div class="skeleton-row"><div class="skeleton skeleton-icon"></div><div class="skeleton-body"><div class="skeleton skeleton-line w-80"></div><div class="skeleton skeleton-line w-40 h-8"></div></div><div class="skeleton skeleton-pill"></div></div></div>
+  <div id="loading-state" class="doc-grid">
+    <div class="doc-card" style="pointer-events:none"><div class="card-thumb"><div class="skeleton" style="width:28px;height:28px;border-radius:6px"></div></div><div class="card-body"><div class="skeleton skeleton-line w-80" style="margin-bottom:8px"></div><div class="skeleton skeleton-line w-40 h-8"></div></div></div>
+    <div class="doc-card" style="pointer-events:none"><div class="card-thumb"><div class="skeleton" style="width:28px;height:28px;border-radius:6px"></div></div><div class="card-body"><div class="skeleton skeleton-line w-60" style="margin-bottom:8px"></div><div class="skeleton skeleton-line w-40 h-8"></div></div></div>
+    <div class="doc-card" style="pointer-events:none"><div class="card-thumb"><div class="skeleton" style="width:28px;height:28px;border-radius:6px"></div></div><div class="card-body"><div class="skeleton skeleton-line w-80" style="margin-bottom:8px"></div><div class="skeleton skeleton-line w-40 h-8"></div></div></div>
   </div>
 
   <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
@@ -267,29 +258,53 @@ function renderDocs(docs) {
     }
     emptyEl.hidden = true;
 
-    const docItems = docs.map(doc => {
-      const done=doc.status==='done', proc=doc.status==='processing';
+    docs.forEach(doc => {
+      const done=doc.status==='done', proc=doc.status==='processing', err=doc.status==='error';
       const cls=done?'done':(proc?'processing':'error');
       const label=done?t('done'):(proc?t('processing'):t('error'));
-      const icon=done
-        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+      const thumbCls = proc ? 'proc-thumb' : err ? 'err-thumb' : '';
+      const thumbIcon = done
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'
         : proc
-        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
-        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-      const meta=[doc.page_count?doc.page_count+' '+t('pages'):'', doc.word_count?doc.word_count.toLocaleString()+' '+t('words'):'', doc.flashcard_count?doc.flashcard_count+' '+t('flashcards'):'', doc.provider==='gemini'?'Gemini':'Claude'].filter(Boolean).join(' · ');
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>';
+      const provCls = doc.provider==='gemini' ? 'gemini' : 'claude';
+      const provLetter = doc.provider==='gemini' ? 'G' : 'C';
       const subjectBadge = doc.subjects ? `<span class="subject-badge" style="color:${doc.subjects.color};border-color:${doc.subjects.color}40;background:${doc.subjects.color}10"><span class="subject-dot" style="background:${doc.subjects.color}"></span>${esc(doc.subjects.name)}</span>` : '';
-      const html = `<div class="doc-icon ${done?'done':(proc?'proc':'')}">${icon}</div>
-      <div class="doc-info"><span class="doc-name" data-doc-id="${doc.id}" title="Click to rename">${esc(doc.filename)}</span><div class="doc-meta">${meta||fmtDate(doc.created_at)} ${subjectBadge}</div></div>
-      <div class="doc-status ${cls}">${label}</div>
-      ${proc?'<div class="spinner"></div>':''}
-      <button class="doc-delete-btn" data-doc-id="${doc.id}" title="Delete" aria-label="Delete ${esc(doc.filename)}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-      </button>`;
-      return { html, doc, done };
-    });
 
-    renderDocList(listEl, docItems, ({ doc, done }) => {
-      if (done) window.location.href = 'view.html?id=' + doc.id;
+      const card = document.createElement('div');
+      card.className = 'doc-card';
+      card.style.animationDelay = (Array.from(listEl.children).length * 40) + 'ms';
+      card.innerHTML = `
+        <div class="card-thumb ${thumbCls}">${thumbIcon}</div>
+        <div class="card-body">
+          <div class="card-title" title="${esc(doc.filename)}">${esc(doc.filename)}</div>
+          <div class="card-meta">
+            <span class="provider-icon ${provCls}">${provLetter}</span>
+            <span class="doc-status ${cls}">${label}</span>
+            ${subjectBadge}
+          </div>
+        </div>
+        <div class="card-footer">
+          <span style="font-size:.72rem;color:var(--muted)">${fmtDate(doc.created_at)}</span>
+          <div class="card-actions">
+            ${done ? `<button class="doc-rename-btn" data-doc-id="${doc.id}" title="Rename"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : ''}
+            <button class="doc-delete-btn" data-doc-id="${doc.id}" title="Delete" aria-label="Delete ${esc(doc.filename)}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>
+          </div>
+        </div>`;
+
+      if (done) {
+        card.addEventListener('click', () => { window.location.href = 'view.html?id=' + doc.id; });
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+      }
+      if (proc) {
+        card.style.opacity = '.7';
+        card.style.cursor = 'default';
+      }
+      listEl.appendChild(card);
     });
 
   // Wire up delete buttons
@@ -299,18 +314,22 @@ function renderDocs(docs) {
       e.preventDefault();
       const docId = btn.dataset.docId;
       const doc = allDocs.find(d => d.id === docId);
-      if (doc) deleteDoc(doc, btn.closest('.doc-item'));
+      if (doc) deleteDoc(doc, btn.closest('.doc-card'));
     });
   });
 
-  // Wire up rename
-  listEl.querySelectorAll('.doc-name').forEach(nameEl => {
-    nameEl.addEventListener('click', e => {
+  // Wire up rename buttons
+  listEl.querySelectorAll('.doc-rename-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
       e.stopPropagation();
       e.preventDefault();
-      const docId = nameEl.dataset.docId;
+      const docId = btn.dataset.docId;
       const doc = allDocs.find(d => d.id === docId);
-      if (doc) startDocRename(nameEl, doc);
+      const card = btn.closest('.doc-card');
+      if (doc && card) {
+        const titleEl = card.querySelector('.card-title');
+        startDocRename(titleEl, doc);
+      }
     });
   });
 }

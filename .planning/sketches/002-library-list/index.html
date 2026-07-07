@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sketch 002: Library List</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf9f6; --text: #171717; --text-secondary: #6b6b6b; --gold: #A16207;
+      --card-bg: #ffffff; --card-border: #e5e5e5; --border: #e5e5e5;
+    }
+    [data-theme="dark"] {
+      --bg: #0a0a0a; --text: #ededed; --text-secondary: #888; --gold: #d4a017;
+      --card-bg: #141414; --card-border: #262626; --border: #262626;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .variant-tabs { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; gap: 8px; }
+    .variant-tabs button { padding: 8px 16px; border-radius: 20px; border: 1.5px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font: 500 13px/1 'Inter', sans-serif; transition: all .2s; }
+    .variant-tabs button.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .variant-tabs button:hover:not(.active) { border-color: var(--gold); color: var(--text); }
+
+    .variant { display: none; padding: 32px; max-width: 960px; margin: 0 auto; }
+    .variant.active { display: block; }
+
+    /* ============ SHARED ============ */
+    .page-header { margin-bottom: 28px; }
+    .page-header h1 { font: 600 28px/1.2 'EB Garamond', serif; margin-bottom: 4px; }
+    .page-header p { color: var(--text-secondary); font-size: 14px; }
+
+    .doc-row, .doc-card, .doc-compact { cursor: pointer; transition: all .2s ease; }
+    .doc-row:hover, .doc-card:hover, .doc-compact:hover { transform: translateY(-1px); }
+
+    .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+    .status-ready { background: #ecfdf5; color: #059669; }
+    .status-processing { background: #fef3c7; color: #d97706; }
+    .status-error { background: #fef2f2; color: #dc2626; }
+    .subject-tag { display: inline-flex; padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 500; background: var(--gold); color: #fff; letter-spacing: .02em; }
+    .provider-icon { width: 16px; height: 16px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+    .provider-claude { background: #f3e8ff; color: #7c3aed; }
+    .provider-gemini { background: #dbeafe; color: #2563eb; }
+
+    /* ============ VARIANT A: RICH CARDS ============ */
+    .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .doc-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; }
+    .doc-card:hover { border-color: var(--gold); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+    .doc-card .thumb { height: 100px; background: linear-gradient(135deg, #f5f0e8, #ede4d4); display: flex; align-items: center; justify-content: center; }
+    [data-theme="dark"] .doc-card .thumb { background: linear-gradient(135deg, #1a1714, #252017); }
+    .doc-card .thumb svg { width: 32px; height: 32px; opacity: .4; }
+    .doc-card .card-body { padding: 14px; }
+    .doc-card .card-title { font: 500 14px/1.3 'Inter', sans-serif; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-card .card-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+    .doc-card .card-footer { padding: 10px 14px; border-top: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+    .doc-card .card-footer .actions { display: flex; gap: 6px; }
+    .doc-card .card-footer .actions span { cursor: pointer; padding: 3px 6px; border-radius: 4px; transition: background .15s; }
+    .doc-card .card-footer .actions span:hover { background: var(--border); }
+
+    /* ============ VARIANT B: TABLE ROWS ============ */
+    .doc-table { width: 100%; border-collapse: collapse; border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; background: var(--card-bg); }
+    .doc-table th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); border-bottom: 1px solid var(--card-border); background: var(--bg); }
+    .doc-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .doc-table tr:last-child td { border-bottom: none; }
+    .doc-table tr:hover td { background: rgba(161,98,7,.03); }
+    .doc-table .filename { font-weight: 500; }
+    .doc-table .date { color: var(--text-secondary); font-size: 12px; }
+    .doc-table .actions { display: flex; gap: 6px; }
+    .doc-table .actions span { cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 12px; transition: background .15s; }
+    .doc-table .actions span:hover { background: var(--border); }
+
+    /* ============ VARIANT C: COMPACT LIST ============ */
+    .doc-compact { border-bottom: 1px solid var(--border); padding: 12px 0; display: flex; align-items: center; gap: 12px; }
+    .doc-compact:last-child { border-bottom: none; }
+    .doc-compact:hover { background: rgba(161,98,7,.02); margin: 0 -12px; padding: 12px; border-radius: 8px; }
+    .doc-compact .row-icon { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #f5f0e8, #ede4d4); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    [data-theme="dark"] .doc-compact .row-icon { background: linear-gradient(135deg, #1a1714, #252017); }
+    .doc-compact .row-icon svg { width: 16px; height: 16px; opacity: .5; }
+    .doc-compact .row-info { flex: 1; min-width: 0; }
+    .doc-compact .row-title { font: 500 13px/1.3 'Inter', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-compact .row-meta { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+    .doc-compact .row-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+    .doc-compact:hover .row-actions { opacity: 1; }
+    .doc-compact .row-actions span { cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 12px; color: var(--text-secondary); }
+    .doc-compact .row-actions span:hover { background: var(--border); color: var(--text); }
+
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--text-secondary); }
+    .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: .3; }
+    .empty-state p { font-size: 14px; }
+
+    @media (prefers-color-scheme: dark) { :root { --bg: #0a0a0a; --text: #ededed; --text-secondary: #888; --gold: #d4a017; --card-bg: #141414; --card-border: #262626; --border: #262626; } }
+  </style>
+</head>
+<body>
+  <div class="variant-tabs">
+    <button class="active" onclick="showVariant('a')">A: Rich Cards</button>
+    <button onclick="showVariant('b')">B: Table Rows</button>
+    <button onclick="showVariant('c')">C: Compact List</button>
+  </div>
+
+  <!-- ============ VARIANT A: RICH CARDS ============ -->
+  <div class="variant active" id="var-a">
+    <div class="page-header">
+      <h1>My <span style="color:var(--gold)">Library</span></h1>
+      <p>6 documents · 4 ready, 1 processing, 1 error</p>
+    </div>
+
+    <div class="doc-grid">
+      <div class="doc-card">
+        <div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="card-body">
+          <div class="card-title">Machine Learning Lecture 12 — Neural Networks</div>
+          <div class="card-meta">
+            <span class="provider-icon provider-claude">C</span>
+            <span class="status-badge status-ready">Ready</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span class="subject-tag">CS</span>
+          <div class="actions"><span>✏️</span><span>🗑️</span></div>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="card-body">
+          <div class="card-title">Organic Chemistry — Reaction Mechanisms</div>
+          <div class="card-meta">
+            <span class="provider-icon provider-gemini">G</span>
+            <span class="status-badge status-ready">Ready</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span class="subject-tag">Chemistry</span>
+          <div class="actions"><span>✏️</span><span>🗑️</span></div>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="thumb" style="background:linear-gradient(135deg,#fef3c7,#fde68a);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <div class="card-body">
+          <div class="card-title">Linear Algebra Midterm Review</div>
+          <div class="card-meta">
+            <span class="provider-icon provider-claude">C</span>
+            <span class="status-badge status-processing">Processing</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span class="subject-tag">Math</span>
+          <div class="actions"><span>⏹️</span></div>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="card-body">
+          <div class="card-title">Statistics Chapter 8 — Hypothesis Testing</div>
+          <div class="card-meta">
+            <span class="provider-icon provider-gemini">G</span>
+            <span class="status-badge status-ready">Ready</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span class="subject-tag">Math</span>
+          <div class="actions"><span>✏️</span><span>🗑️</span></div>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="thumb" style="background:linear-gradient(135deg,#fef2f2,#fecaca);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div>
+        <div class="card-body">
+          <div class="card-title">Physics 201 — Quantum Mechanics Intro</div>
+          <div class="card-meta">
+            <span class="provider-icon provider-claude">C</span>
+            <span class="status-badge status-error">Error</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span class="subject-tag">Physics</span>
+          <div class="actions"><span>🔄</span><span>🗑️</span></div>
+        </div>
+      </div>
+
+      <div class="doc-card">
+        <div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="card-body">
+          <div class="card-title">Introduction to Sociology — Week 6</div>
+          <div class="card-meta">
+            <span class="provider-icon provider-gemini">G</span>
+            <span class="status-badge status-ready">Ready</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <span class="subject-tag">Sociology</span>
+          <div class="actions"><span>✏️</span><span>🗑️</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VARIANT B: TABLE ROWS ============ -->
+  <div class="variant" id="var-b">
+    <div class="page-header">
+      <h1>My <span style="color:var(--gold)">Library</span></h1>
+      <p>6 documents · 4 ready, 1 processing, 1 error</p>
+    </div>
+
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th>Document</th>
+          <th>Subject</th>
+          <th>Provider</th>
+          <th>Status</th>
+          <th>Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="filename">Machine Learning Lecture 12 — Neural Networks</td>
+          <td><span class="subject-tag">CS</span></td>
+          <td><span class="provider-icon provider-claude">C</span></td>
+          <td><span class="status-badge status-ready">Ready</span></td>
+          <td class="date">Jun 28, 2026</td>
+          <td class="actions"><span>✏️</span><span>🗑️</span></td>
+        </tr>
+        <tr>
+          <td class="filename">Organic Chemistry — Reaction Mechanisms</td>
+          <td><span class="subject-tag">Chemistry</span></td>
+          <td><span class="provider-icon provider-gemini">G</span></td>
+          <td><span class="status-badge status-ready">Ready</span></td>
+          <td class="date">Jun 27, 2026</td>
+          <td class="actions"><span>✏️</span><span>🗑️</span></td>
+        </tr>
+        <tr>
+          <td class="filename">Linear Algebra Midterm Review</td>
+          <td><span class="subject-tag">Math</span></td>
+          <td><span class="provider-icon provider-claude">C</span></td>
+          <td><span class="status-badge status-processing">Processing</span></td>
+          <td class="date">Jun 26, 2026</td>
+          <td class="actions"><span>⏹️</span></td>
+        </tr>
+        <tr>
+          <td class="filename">Statistics Chapter 8 — Hypothesis Testing</td>
+          <td><span class="subject-tag">Math</span></td>
+          <td><span class="provider-icon provider-gemini">G</span></td>
+          <td><span class="status-badge status-ready">Ready</span></td>
+          <td class="date">Jun 25, 2026</td>
+          <td class="actions"><span>✏️</span><span>🗑️</span></td>
+        </tr>
+        <tr>
+          <td class="filename">Physics 201 — Quantum Mechanics Intro</td>
+          <td><span class="subject-tag">Physics</span></td>
+          <td><span class="provider-icon provider-claude">C</span></td>
+          <td><span class="status-badge status-error">Error</span></td>
+          <td class="date">Jun 24, 2026</td>
+          <td class="actions"><span>🔄</span><span>🗑️</span></td>
+        </tr>
+        <tr>
+          <td class="filename">Introduction to Sociology — Week 6</td>
+          <td><span class="subject-tag">Sociology</span></td>
+          <td><span class="provider-icon provider-gemini">G</span></td>
+          <td><span class="status-badge status-ready">Ready</span></td>
+          <td class="date">Jun 23, 2026</td>
+          <td class="actions"><span>✏️</span><span>🗑️</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ VARIANT C: COMPACT LIST ============ -->
+  <div class="variant" id="var-c">
+    <div class="page-header">
+      <h1>My <span style="color:var(--gold)">Library</span></h1>
+      <p>6 documents · 4 ready, 1 processing, 1 error</p>
+    </div>
+
+    <div style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:10px; padding:4px 12px;">
+      <div class="doc-compact">
+        <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="row-info">
+          <div class="row-title">Machine Learning Lecture 12 — Neural Networks</div>
+          <div class="row-meta">
+            <span class="subject-tag">CS</span>
+            <span class="provider-icon provider-claude">C</span>
+            <span class="status-badge status-ready">Ready</span>
+            <span>Jun 28</span>
+          </div>
+        </div>
+        <div class="row-actions"><span>✏️</span><span>🗑️</span></div>
+      </div>
+
+      <div class="doc-compact">
+        <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="row-info">
+          <div class="row-title">Organic Chemistry — Reaction Mechanisms</div>
+          <div class="row-meta">
+            <span class="subject-tag">Chemistry</span>
+            <span class="provider-icon provider-gemini">G</span>
+            <span class="status-badge status-ready">Ready</span>
+            <span>Jun 27</span>
+          </div>
+        </div>
+        <div class="row-actions"><span>✏️</span><span>🗑️</span></div>
+      </div>
+
+      <div class="doc-compact">
+        <div class="row-icon" style="background:linear-gradient(135deg,#fef3c7,#fde68a);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <div class="row-info">
+          <div class="row-title">Linear Algebra Midterm Review</div>
+          <div class="row-meta">
+            <span class="subject-tag">Math</span>
+            <span class="provider-icon provider-claude">C</span>
+            <span class="status-badge status-processing">Processing</span>
+            <span>Jun 26</span>
+          </div>
+        </div>
+        <div class="row-actions"><span>⏹️</span></div>
+      </div>
+
+      <div class="doc-compact">
+        <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="row-info">
+          <div class="row-title">Statistics Chapter 8 — Hypothesis Testing</div>
+          <div class="row-meta">
+            <span class="subject-tag">Math</span>
+            <span class="provider-icon provider-gemini">G</span>
+            <span class="status-badge status-ready">Ready</span>
+            <span>Jun 25</span>
+          </div>
+        </div>
+        <div class="row-actions"><span>✏️</span><span>🗑️</span></div>
+      </div>
+
+      <div class="doc-compact">
+        <div class="row-icon" style="background:linear-gradient(135deg,#fef2f2,#fecaca);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg></div>
+        <div class="row-info">
+          <div class="row-title">Physics 201 — Quantum Mechanics Intro</div>
+          <div class="row-meta">
+            <span class="subject-tag">Physics</span>
+            <span class="provider-icon provider-claude">C</span>
+            <span class="status-badge status-error">Error</span>
+            <span>Jun 24</span>
+          </div>
+        </div>
+        <div class="row-actions"><span>🔄</span><span>🗑️</span></div>
+      </div>
+
+      <div class="doc-compact">
+        <div class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
+        <div class="row-info">
+          <div class="row-title">Introduction to Sociology — Week 6</div>
+          <div class="row-meta">
+            <span class="subject-tag">Sociology</span>
+            <span class="provider-icon provider-gemini">G</span>
+            <span class="status-badge status-ready">Ready</span>
+            <span>Jun 23</span>
+          </div>
+        </div>
+        <div class="row-actions"><span>✏️</span><span>🗑️</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showVariant(id) {
+      document.querySelectorAll('.variant').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.variant-tabs button').forEach(b => b.classList.remove('active'));
+      document.getElementById('var-' + id).classList.add('active');
+      document.querySelector(`.variant-tabs button:nth-child(${id === 'a' ? 1 : id === 'b' ? 2 : 3})`).classList.add('active');
+    }
+  </script>
+</body>
+</html>
