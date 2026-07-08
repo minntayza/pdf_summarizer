@@ -401,6 +401,7 @@ header { text-align: center; margin-bottom: 52px; }
 
 /* ── Drop Zone ────────────────────────────────────────────── */
 #drop-zone {
+  display: block;
   border: 2px dashed var(--border2); border-radius: var(--xl);
   padding: 52px 24px; text-align: center; cursor: pointer;
   transition: all .25s ease; background: var(--surf2);
@@ -497,7 +498,10 @@ header { text-align: center; margin-bottom: 52px; }
 .bar-btn-accent:hover { filter: brightness(1.1); transform: scale(1.03); }
 .bar-btn-accent:disabled { opacity: .35; pointer-events: none; }
 
-#file-input { position: absolute; width: 0; height: 0; opacity: 0; overflow: hidden; }
+#file-input {
+  position: absolute;
+  width: 0; height: 0; opacity: 0; overflow: hidden;
+}
 
 /* ── File Chip ────────────────────────────────────────────── */
 #file-chip {
