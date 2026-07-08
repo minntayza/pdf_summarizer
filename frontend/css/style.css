@@ -410,10 +410,12 @@ header { text-align: center; margin-bottom: 52px; }
   content: ''; position: absolute; inset: -2px;
   background: linear-gradient(135deg, var(--gold), transparent 40%, transparent 60%, var(--gold));
   border-radius: var(--xl); opacity: 0; transition: opacity .4s; z-index: 0;
+  pointer-events: none;
 }
 #drop-zone::after {
   content: ''; position: absolute; inset: 1px;
   background: var(--surf2); border-radius: calc(var(--xl) - 1px); z-index: 0;
+  pointer-events: none;
 }
 #drop-zone > * { position: relative; z-index: 1; }
 #drop-zone:hover::before { opacity: .12; }
@@ -495,7 +497,7 @@ header { text-align: center; margin-bottom: 52px; }
 .bar-btn-accent:hover { filter: brightness(1.1); transform: scale(1.03); }
 .bar-btn-accent:disabled { opacity: .35; pointer-events: none; }
 
-#file-input { display: none; }
+#file-input { position: absolute; width: 0; height: 0; opacity: 0; overflow: hidden; }
 
 /* ── File Chip ────────────────────────────────────────────── */
 #file-chip {
