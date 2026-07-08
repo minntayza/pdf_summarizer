@@ -213,9 +213,9 @@ body::before {
 .nav-backdrop {
   display: none; position: fixed; inset: 0; z-index: 98;
   background: rgba(0,0,0,.3);
-  opacity: 0; transition: opacity .2s ease;
+  opacity: 0; pointer-events: none; transition: opacity .2s ease;
 }
-.nav-backdrop.open { opacity: 1; }
+.nav-backdrop.open { opacity: 1; pointer-events: auto; }
 
 /* ── Streak flame ───────────────────────────────────────────── */
 .streak-flame {
