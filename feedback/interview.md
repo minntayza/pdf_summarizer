@@ -1,39 +1,37 @@
-# User Interview — Smart PDF Lecture Summarizer
+# User Interview — Smart PDF Summarizer
 
-- **Who:** Aung Min — university classmate, final-year CS student
-- **When:** 2026-07-06
-- **How:** In person, ~15 minutes
+- **Who:** A university student (21-year-old, studying engineering, non-medical background)
+- **When:** 2026-07-11
+- **How:** In person, ~15 minutes, she used the app on her laptop while I observed
 
 ## What they do today (without your project)
 
-Before exams, Aung Min reads through lecture PDFs (30-60 pages each) and manually writes notes. He highlights important sections and creates flashcards by hand in a notebook. This takes hours per subject and he often misses key points.
+After her annual university health screening, she receives a multi-page lab report PDF. She skims the numbers but does not understand what most of the values mean or whether they are concerning. She sometimes copies values into Google search one by one, which is tedious and gives inconsistent explanations. She usually just ignores the report unless something is obviously flagged.
 
 ## What they liked
 
-- The summary was well-organized with clear headings — much better than his manual notes
-- Flashcards saved him time — he didn't have to write Q&A pairs by hand
-- Key exam points were useful — highlighted what's likely to appear on the test
-- Dark mode was comfortable for late-night study sessions
-- Myanmar language support was a nice touch for local students
+- The upload was straightforward — drag and drop worked smoothly
+- The summary grouped results into clear categories (things to watch, things that are fine)
+- The risk explanations were easy to understand without medical training
+- The food and lifestyle tips at the end felt actionable, not generic
 
 ## What confused them / what's missing
 
-- Didn't know he could chat with the PDF after processing — the chat feature wasn't obvious
-- Wanted a way to organize documents by subject (this exists but wasn't discoverable)
-- The processing took about 2 minutes for a 40-page PDF — felt slow at first
-- No mobile-friendly layout — hard to use on phone
+- She tried uploading a scanned photo of her report first and got an error — she did not realize only PDF was supported
+- The summary did not show what the normal range was for each value, so she could not tell if she was borderline or far off
+- There was no way to save or download the summary — she wanted to keep it for reference
+- Some values were listed as normal but she was curious why they were measured at all if nothing was wrong
 
 ## What would make them actually use it
 
-- Faster processing (under 30 seconds would be ideal)
-- Better onboarding — a quick tutorial or tooltip on first use
-- Mobile responsive design
-- Ability to share study materials with classmates through study rooms
+- Photo/image upload support since she often takes phone pictures of printed documents
+- Reference ranges displayed next to each lab value for context
+- Download or export the summary as a PDF so she can share it or save it
+- A history feature to compare results from different check-ups over time
 
 ## What I'll change (next steps)
 
-- [ ] Add a first-time user tooltip or walkthrough
-- [ ] Improve mobile responsiveness
-- [ ] Show processing speed estimate before upload
-- [ ] Make the chat-with-PDF feature more visible on the results page
-- [ ] Test study room invite flow with real users
+- [ ] Add image/photo upload support (not just PDF)
+- [ ] Show reference ranges next to each lab value
+- [ ] Add export/download summary as PDF
+- [ ] Consider a results history or comparison feature for future versions
