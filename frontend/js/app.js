@@ -1,9 +1,6 @@
 // app.js — Shared utilities for Smart PDF Summarizer (ES module)
 // Import in HTML pages instead of duplicating these functions inline.
 
-// ── DOM helpers ──────────────────────────────────────────
-export const $ = (id) => document.getElementById(id);
-
 // ── Format file size ─────────────────────────────────────
 export function fmtSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -92,29 +89,6 @@ export function downloadBlob(content, filename) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-// ── Render document list with staggered animation ──────────
-export function renderDocList(container, docItems, clickHandler) {
-  container.innerHTML = '';
-  docItems.forEach((doc, i) => {
-    const div = document.createElement('div');
-    div.className = 'doc-item';
-    div.style.animationDelay = (i * 40) + 'ms';
-    div.innerHTML = doc.html;
-    if (clickHandler) {
-      div.addEventListener('click', () => clickHandler(doc));
-      div.tabIndex = 0;
-      div.setAttribute('role', 'button');
-      div.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          clickHandler(doc);
-        }
-      });
-    }
-    container.appendChild(div);
-  });
 }
 
 // ── Render flashcards with keyboard accessibility ────────

@@ -29,7 +29,7 @@
 
   <header>
     <div class="logo logo-sm"><span class="logo-accent" data-i18n="manageSubjects">Manage Subjects</span></div>
-    <p class="subtitle">Organize your documents by course or subject.</p>
+    <p class="subtitle" data-i18n="subjectsSubtitle">Organize your documents by course or subject.</p>
   </header>
 
   <div class="card" id="add-subject-card">
@@ -62,8 +62,8 @@
 
   <div class="empty-state" id="empty-state" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v16H4z"/><path d="M4 10h16"/><path d="M10 4v16"/></svg>
-    <h3>No subjects yet</h3>
-    <p>Create your first subject above to start organizing.</p>
+    <h3 data-i18n="noSubjects">No subjects yet</h3>
+    <p data-i18n="noSubjectsHint">Create your first subject above to start organizing.</p>
   </div>
 
   <footer data-i18n="footer">Built with ❤️ · Powered by Supabase + AI</footer>
@@ -99,15 +99,15 @@ document.getElementById('color-options').addEventListener('click', e => {
 document.getElementById('add-subject-btn').addEventListener('click', async () => {
   const nameInput = document.getElementById('subject-name-input');
   const name = nameInput.value.trim();
-  if (!name) return toast('Please enter a subject name.', 'error');
+  if (!name) return toast(t('subjectNameEmpty'), 'error');
 
   const { data, error } = await createSubject(name, selectedColor);
   if (error) {
-    if (error.code === '23505') return toast('A subject with this name already exists.', 'error');
-    return toast('Failed to create subject.', 'error');
+    if (error.code === '23505') return toast(t('subjectNameExists'), 'error');
+    return toast(t('subjectCreateFail'), 'error');
   }
   nameInput.value = '';
-  toast('Subject created!', 'success');
+  toast(t('subjectCreated'), 'success');
   await loadSubjects();
 });
 
@@ -141,8 +141,8 @@ async function loadSubjects() {
       const ok = await confirm(t('deleteSubjectConfirm'));
       if (!ok) return;
       const { error } = await deleteSubject(s.id);
-      if (error) return toast('Failed to delete.', 'error');
-      toast('Subject deleted.', 'success');
+      if (error) return toast(t('subjectDeleteFail'), 'error');
+      toast(t('subjectDeleted'), 'success');
       await loadSubjects();
     });
 
@@ -150,8 +150,8 @@ async function loadSubjects() {
       const newName = prompt(t('subjectName') + ':', s.name);
       if (!newName || newName.trim() === s.name) return;
       const { error } = await updateSubject(s.id, newName.trim());
-      if (error) return toast('Failed to update.', 'error');
-      toast('Subject updated.', 'success');
+      if (error) return toast(t('subjectUpdateFail'), 'error');
+      toast(t('subjectUpdated'), 'success');
       await loadSubjects();
     });
 
