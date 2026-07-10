@@ -18,56 +18,14 @@
 <body>
 <div class="control-bar" id="control-bar-target"></div>
 
-<div class="wrap">
-  <div class="top-bar">
-    <a href="library.html" class="btn btn-ghost btn-sm">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      <span data-i18n="library">Library</span>
-    </a>
-    <div class="user-info">
-      <span class="user-email" id="user-email"></span>
-      <button class="btn btn-danger btn-xs" id="logout-btn" data-i18n="logOut">Log out</button>
-    </div>
-  </div>
-
-  <header>
+<div class="wrap" style="padding-bottom: 100px;">
+  <!-- Cinematic Upload Layout -->
+  <div class="upload-hero">
     <div class="logo logo-sm">Upload <span class="logo-accent">Lecture PDF</span></div>
     <p class="subtitle" data-i18n="uploadTagline">Drop a PDF and let AI turn it into study notes.</p>
-  </header>
+  </div>
 
-  <div class="card" id="upload-card">
-    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-      <div style="flex:1;min-width:140px">
-        <label class="provider-label" for="subject-select" data-i18n="subjects">Subject</label>
-        <select id="subject-select" aria-label="Subject" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
-          <option value="" data-i18n="noSubject">No Subject</option>
-        </select>
-      </div>
-      <div style="flex:1;min-width:140px">
-        <label class="provider-label" for="language-select" data-i18n="outputLanguage">Output Language</label>
-        <select id="language-select" aria-label="Output Language" style="width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--rs);background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;">
-          <option value="english" data-i18n="langEnglish">English</option>
-          <option value="myanmar" data-i18n="langMyanmar">Myanmar</option>
-          <option value="chinese" data-i18n="langChinese">Chinese</option>
-          <option value="japanese" data-i18n="langJapanese">Japanese</option>
-          <option value="korean" data-i18n="langKorean">Korean</option>
-          <option value="thai" data-i18n="langThai">Thai</option>
-        </select>
-      </div>
-    </div>
-
-    <span class="provider-label" data-i18n="aiProvider">AI Provider</span>
-    <div class="provider-toggle">
-      <button class="prov-btn active" id="btn-claude">
-        <span class="prov-name">Claude</span>
-        <span class="prov-sub">via custom proxy</span>
-      </button>
-      <button class="prov-btn" id="btn-gemini" disabled title="Gemini requires API key setup">
-        <span class="prov-name">Gemini</span>
-        <span class="prov-sub">gemini-1.5-flash · setup required</span>
-      </button>
-    </div>
-
+  <div class="upload-hero-card" id="upload-card">
     <!-- Provider capabilities info -->
     <div class="provider-info" id="provider-info">
       <div class="provider-cap" id="cap-claude">
@@ -92,12 +50,12 @@
       <span data-i18n="proxySlowWarning">Proxy is slow — processing may take 5–8 minutes</span>
     </div>
 
-    <div id="drop-zone" tabindex="0" role="button" aria-label="Upload PDF file">
+    <label id="drop-zone" for="file-input" tabindex="0" role="button" aria-label="Upload PDF file">
       <div class="drop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
       <div class="drop-title" data-i18n="dropTitle">Drop your lecture PDF here</div>
       <div class="drop-sub" data-i18n="dropSub">or click to browse — max 25 MB</div>
       <input type="file" id="file-input" accept=".pdf,application/pdf" aria-label="Choose PDF file"/>
-    </div>
+    </label>
 
     <div id="file-chip">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -107,10 +65,37 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
+  </div>
 
-    <div class="btn-row end submit-row">
-      <button class="btn btn-accent" id="submit-btn" disabled data-i18n="analyzePDF">Analyze PDF</button>
+  <!-- Floating Bottom Bar -->
+  <div class="bottom-bar" id="bottom-bar">
+    <div class="bar-group">
+      <span class="bar-label" data-i18n="aiProvider">AI</span>
+      <div class="bar-pills">
+        <button class="bar-pill active" id="btn-claude">Claude</button>
+        <button class="bar-pill" id="btn-gemini">Gemini</button>
+      </div>
     </div>
+    <div class="bar-divider"></div>
+    <div class="bar-group">
+      <span class="bar-label" data-i18n="subjects">Subject</span>
+      <select class="bar-select" id="subject-select" aria-label="Subject">
+        <option value="" data-i18n="noSubject">No Subject</option>
+      </select>
+    </div>
+    <div class="bar-group">
+      <span class="bar-label" data-i18n="outputLanguage">Lang</span>
+      <select class="bar-select" id="language-select" aria-label="Output Language">
+        <option value="english">EN</option>
+        <option value="myanmar">MY</option>
+        <option value="chinese">ZH</option>
+        <option value="japanese">JA</option>
+        <option value="korean">KO</option>
+        <option value="thai">TH</option>
+      </select>
+    </div>
+    <div class="bar-divider"></div>
+    <button class="bar-btn bar-btn-accent" id="submit-btn" disabled data-i18n="analyzePDF">Analyze PDF</button>
   </div>
 
   <div class="card" id="prog-section">
@@ -260,8 +245,8 @@ document.getElementById('btn-gemini').addEventListener('click', () => {
 document.getElementById('language-select').addEventListener('change', updateLangWarning);
 
 function updateProvUI() {
-  $('btn-claude').className = 'prov-btn' + (provider==='claude'?' active':'');
-  $('btn-gemini').className = 'prov-btn' + (provider==='gemini'?' active':'');
+  $('btn-claude').className = 'bar-pill' + (provider==='claude'?' active':'');
+  $('btn-gemini').className = 'bar-pill' + (provider==='gemini'?' active':'');
   // Show/hide provider capability info
   $('cap-claude').style.display = provider==='claude' ? 'flex' : 'none';
   $('cap-gemini').style.display = provider==='gemini' ? 'flex' : 'none';
@@ -379,6 +364,7 @@ async function doUpload() {
   startTime = Date.now();
   etaBuckets = [];
   hideErr(); $('upload-card').style.display='none'; $('results').classList.remove('show');
+  $('bottom-bar').style.display='none';
   $('prog-section').classList.add('show'); $('prog-name').textContent = customFilename || selFile.name;
   updateProgress(0, t('uploadingPDF'));
   try {
@@ -401,7 +387,7 @@ async function doUpload() {
       pollTimer = null;
       throw new Error(fnErr.message);
     }
-  } catch (err) { showErr(err.message); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
+  } catch (err) { showErr(err.message); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); $('bottom-bar').style.display=''; }
 }
 function setActivePhase(pct) {
   const pipeline = document.getElementById('phase-pipeline');
@@ -464,6 +450,7 @@ function startPoll(docId, uid) {
       showErr(t('somethingWentWrong') || 'Processing timed out. Please try again.');
       $('upload-card').style.display = '';
       $('prog-section').classList.remove('show');
+      $('bottom-bar').style.display = '';
       return;
     }
     try {
@@ -476,7 +463,7 @@ function startPoll(docId, uid) {
       failCount = 0;
       updateProgress(doc.progress, doc.progress_msg);
       if (doc.status === 'done') { clearInterval(pollTimer); showResults(doc, uid); recordActivity().then(() => renderStreak('streak-display')); }
-      if (doc.status === 'error') { clearInterval(pollTimer); showErr(doc.error_msg || t('somethingWentWrong')); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); }
+      if (doc.status === 'error') { clearInterval(pollTimer); showErr(doc.error_msg || t('somethingWentWrong')); $('upload-card').style.display=''; $('prog-section').classList.remove('show'); $('bottom-bar').style.display=''; }
     } catch (pollErr) {
       console.error('Poll failed:', pollErr);
       failCount++;
@@ -485,6 +472,7 @@ function startPoll(docId, uid) {
         showErr(t('networkError'));
         $('upload-card').style.display = '';
         $('prog-section').classList.remove('show');
+        $('bottom-bar').style.display = '';
       }
     }
   }, 1500);
@@ -500,7 +488,7 @@ function renderMdPanel(el, raw, emptyMsg) {
 }
 
 async function showResults(doc, uid) {
-  $('prog-section').classList.remove('show'); $('upload-card').style.display='';
+  $('prog-section').classList.remove('show'); $('upload-card').style.display=''; $('bottom-bar').style.display='none';
   $('result-badge').textContent = doc.provider==='gemini'?'Gemini':'Claude';
   let st = '';
   if (doc.page_count) st += `<div class="stat">${t('pages')}: <strong>${doc.page_count}</strong></div>`;

@@ -100,8 +100,8 @@ async function callClaude(text: string, language: string = "english", pdfBase64?
   // Use smaller max_tokens for proxy (faster response), but non-English still
   // needs more than English because each character encodes to multiple JSON tokens.
   const maxTokens = isNonEnglish
-    ? (isOfficialAnthropic ? 16384 : 4096)
-    : (isOfficialAnthropic ? 6144 : 3072);
+    ? (isOfficialAnthropic ? 16384 : 8192)
+    : (isOfficialAnthropic ? 6144 : 8192);
 
   // Single attempt: 180s proxy, 180s official. Non-English (Myanmar etc.) needs
   // more time because the proxy is slower and each token is more expensive.

@@ -16,3 +16,18 @@ output/
 input/
 supabase/.temp/
 .vercel
+
+# IDE / Editor
+.cursor/
+.vscode/
+
+# Claude Code
+.claude/
+.mcp.json
+
+# Supabase generated
+frontend/supabase/
+
+# Test files
+test-lecture.pdf
+handoff
