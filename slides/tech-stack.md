@@ -3,85 +3,128 @@ marp: true
 auto-advance: 20
 ---
 
-# Tech Stack — Smart PDF Lecture Summarizer
+# How We Built Smart PDF Lecture Summarizer
 
-## Frontend
+## Tech Stack 🔧
 
 | Layer | Tech | Why |
 |-------|------|-----|
 | Markup | HTML5 | Semantic, zero dependencies |
 | Styling | CSS3 (custom properties) | Swiss academic design, light/dark themes |
 | Logic | Vanilla JS (ES modules) | No bundler, no transpiler — instant dev loop |
-| Auth UI | Supabase Auth helpers | Email + password, JWT stored client-side |
-| i18n | Custom `data-i18n` system | English + Myanmar/Burmese bilingual |
-
----
-
-## Backend
-
-| Layer | Tech | Why |
-|-------|------|-----|
-| Runtime | Supabase Edge Functions (Deno/TypeScript) | Serverless, cold-start ~2s, free tier generous |
+| Auth | Supabase Auth | Email + password, JWT client-side |
+| i18n | Custom `data-i18n` | English + Myanmar/Burmese bilingual |
+| Backend | Supabase Edge Functions (Deno) | Serverless, cold-start ~2s, free tier |
 | PDF Parsing | `pdf-parse` (npm) | JS-native, runs inside Edge Function |
-| AI — Primary | Claude API (`claude-sonnet-4-6`) | Best reasoning for academic content |
-| AI — Fallback | Gemini API (`gemini-2.5-flash`) | Backup when Claude unavailable |
-| Proxy | Custom proxy (optional) | Routes around regional API restrictions |
+| AI Primary | Claude API (`claude-sonnet-4-6`) | Best reasoning for academic content |
+| AI Fallback | Gemini API (`gemini-2.5-flash`) | Backup when Claude unavailable |
+| Database | Supabase Postgres | RLS, full-text search, real-time |
+| Storage | Supabase Storage | Private buckets, 25 MB PDFs, 10 MB outputs |
+| Hosting | Vercel (frontend) + Supabase (backend) | Zero infra, auto-deploy from GitHub |
 
 ---
 
-## Data & Storage
+## Agents 🤖
 
-| Layer | Tech | Why |
-|-------|------|-----|
-| Database | Supabase Postgres | RLS policies, full-text search, real-time |
-| Auth | Supabase Auth | Built-in JWT, row-level security integration |
-| File Storage | Supabase Storage | Private buckets, 25 MB PDFs, 10 MB outputs |
-| Search | PostgreSQL FTS (tsvector + GIN) | Fast server-side search, no external service |
+**One custom agent: `code-reviewer`**
 
----
+| Property | Value |
+|----------|-------|
+| File | `.claude/agents/code-reviewer.md` |
+| Model | inherit (uses session model) |
+| Memory | project-scoped |
 
-## Infrastructure & DevOps
+**What it reviews:**
+- Security vulnerabilities (XSS, injection, auth bypass)
+- Correctness & logic errors (null handling, edge cases)
+- Performance issues (O(n²), N+1 queries)
+- Error handling gaps (swallowed exceptions)
+- Architecture concerns (circular deps, missing idempotency)
 
-| Layer | Tech | Why |
-|-------|------|-----|
-| Hosting (frontend) | Vercel | Static site, auto-deploy from GitHub |
-| Hosting (backend) | Supabase Cloud | Managed Deno runtime |
-| CI/CD | GitHub Actions (via Claude Code) | Automated edge function deploys |
-| Secrets | Supabase Secrets | API keys never reach the client |
-| Version Control | Git + GitHub | PRs, branches, handoff docs |
+**Review process:** 5-pass methodology — Intent → Security → Correctness → Performance → Error surface
 
 ---
 
-## Processing Flow
+## Skills 🛠️
 
+**One custom skill: `pdf-summarizer`**
+
+| Property | Value |
+|----------|-------|
+| File | `.claude/skills/pdf-summarizer/SKILL.md` |
+| Scope | Full-stack PDF processing workflow |
+
+**When Claude uses it:**
+- User uploads a lecture PDF → AI generates study materials
+- User reviews past documents from Library
+- User needs to troubleshoot Supabase backend
+- User wants to modify AI prompts
+- User needs to add/update frontend pages
+
+**What it knows:**
+- Full project structure and architecture
+- Core workflow (auth → upload → process → poll → view)
+- All environment variables and secrets
+- AI prompt structure (summary, key points, flashcards)
+- Security patterns (RLS, JWT, private storage)
+
+---
+
+## Methodology 📋
+
+**How we work with Claude Code:**
+
+| Step | What Happens |
+|------|-------------|
+| 1. **Plan first** | `EnterPlanMode` — explore codebase, design approach, get approval |
+| 2. **Implement** | Write code following existing patterns (ES modules, Marp slides) |
+| 3. **Review** | Invoke `code-reviewer` agent for security + correctness audit |
+| 4. **Verify** | Check RLS policies, test edge cases, confirm deploy works |
+| 5. **Document** | Update CLAUDE.md, slides, design docs |
+
+**Key principles:**
+- No build step — `python3 -m http.server 3000` and done
+- RLS on every table — users see only their own data
+- Idempotent migrations — `IF NOT EXISTS`, `DROP POLICY IF EXISTS`
+- Secrets never reach the client — API keys in Supabase Secrets only
+
+---
+
+## Trigger ⚡
+
+**When does Claude Code activate for this project?**
+
+| Trigger | Action |
+|---------|--------|
+| `/pdf-summarizer` | Load the full skill context into conversation |
+| `code-reviewer` agent | Spawned after significant code changes |
+| `CLAUDE.md` | Auto-loaded on every session — project overview + conventions |
+| `settings.local.json` | Permissions + enabled plugins loaded automatically |
+| MCP servers | `github` + `supabase` connected on session start |
+
+**Session startup flow:**
 ```
-Browser                 Supabase Cloud              External
-───────                 ──────────────              ────────
-Login ────────────▶ Auth (JWT)
-Upload PDF ───────▶ Storage (direct)
-POST /process-pdf ─▶ Edge Function
-                       │
-                       ├─ pdf-parse ──▶ text extraction
-                       ├─ Claude API ──▶ summary + key points + flashcards
-                       └─ Storage ◀──── write .md outputs
-Library ◀───────── DB (documents table)
-View ◀──────────── Storage (.md files)
+Claude Code starts
+  → reads CLAUDE.md (project context)
+  → loads settings.local.json (permissions)
+  → connects MCP servers (GitHub + Supabase)
+  → ready to work
 ```
 
 ---
 
-## Why This Stack
+## Commands 🖥️
 
-| Decision | Reasoning |
-|----------|-----------|
-| **No build step** | `python3 -m http.server 3000` and done |
-| **Supabase over Firebase** | Open-source, Postgres-native, better free tier |
-| **Edge Functions over traditional server** | Zero infra management, scales to zero |
-| **Vanilla JS over React** | No node_modules bloat, instant page loads |
-| **Claude over GPT** | Stronger academic reasoning, better structured output |
-| **pdf-parse over PyMuPDF** | Runs in same Deno runtime, no Python dependency |
+**Common commands used in development:**
 
----
+| Command | Purpose |
+|---------|---------|
+| `python3 -m http.server 3000` | Serve frontend locally |
+| `npx supabase functions deploy process-pdf` | Deploy edge function |
+| `npx supabase functions deploy chat-pdf` | Deploy chat function |
+| `npx supabase secrets set ANTHROPIC_API_KEY=...` | Set API key |
+| `git add . && git commit -m "..."` | Save changes |
+| `git push` | Deploy to Vercel (auto) |
 
 ## Cost Breakdown (Free Tier)
 
