@@ -4,8 +4,31 @@
 import { initFontSize, cycleFontSize } from './font-size.js';
 import { t, getLang, setLang } from './i18n.js';
 
-// ── Theme toggle ─────────────────────────────────────────
+// ── Theme toggle (PullCord) ─────────────────────────────────
 export function initTheme() {
+  const mount = document.getElementById('theme-pullcord-mount');
+  if (!mount) {
+    // Fallback: if pullcord mount element not found, try old button
+    initLegacyThemeButton();
+    return;
+  }
+
+  const savedTheme = localStorage.getItem('theme');
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = savedTheme || (systemDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+
+  // Lazy-load the React island for PullCord (only if mount exists)
+  import('./theme-pullcord.js').then(mod => {
+    mod.mountThemePullcord(mount);
+  }).catch(err => {
+    console.warn('PullCord failed to load, falling back to button:', err);
+    initLegacyThemeButton();
+  });
+}
+
+/** Fallback: original button-based theme toggle. */
+function initLegacyThemeButton() {
   const toggle = document.getElementById('theme-toggle');
   if (!toggle) return;
 

@@ -72,6 +72,8 @@ const TRANSLATIONS = {
 
     // Results
     analysisComplete: "Analysis Complete",
+    downloadAll: "Download All",
+    downloadMd: "Download .md",
     summary: "Summary",
     keyPoints: "Key Points",
     flashcards: "Flashcards",
@@ -131,6 +133,7 @@ const TRANSLATIONS = {
     startReview: "Start Review",
     reviewDue: "due",
     noCardsDue: "No cards due for review",
+    allUpToDate: "All flashcards are up to date. Come back later!",
     rateCard: "How well did you know this?",
     again: "Again",
     hard: "Hard",
@@ -146,6 +149,8 @@ const TRANSLATIONS = {
     chatSend: "Send",
     chatEmpty: "Ask any question about this lecture PDF.",
     chatEmptyHint: 'Examples: "What is the main topic?", "Explain the key formula"',
+    noResponseReceived: "No response received.",
+    chatError: "Sorry, something went wrong. Please try again.",
 
     // Language output
     outputLanguage: "Output Language",
@@ -180,6 +185,7 @@ const TRANSLATIONS = {
     noRooms: "No study rooms yet",
     noRoomsHint: "Create a room or join one with an invite code.",
     noSharedDocs: "No documents shared yet",
+    noDocsToShare: "No documents to share.",
     roomInviteCode: "Invite Code",
     copyCode: "Copy",
     copied: "Copied!",
@@ -281,6 +287,8 @@ const TRANSLATIONS = {
 
     // Results
     analysisComplete: "စစ်ဆေးပြီးပါပြီ",
+    downloadAll: "အားလုံးဒေါင်းလုဒ်",
+    downloadMd: "ဒေါင်းလုဒ် .md",
     summary: "အနှစ်ချုပ်",
     keyPoints: "အရေးကြီးအချက်များ",
     flashcards: "Flashcards",
@@ -340,6 +348,7 @@ const TRANSLATIONS = {
     startReview: "ပြန်လည်သုံးသပ်မည်",
     reviewDue: "ပြန်ဖြေရန်ရှိသည်",
     noCardsDue: "ပြန်ဖြေရန် ကတ်မရှိပါ",
+    allUpToDate: "ကတ်အားလုံး အဆင်သင့်ဖြစ်ပါသည်။ နောက်မှပြန်လာပါ။",
     rateCard: "ဒီကတ်ကို ဘယ်လောက်သိပါသလဲ?",
     again: "ထပ်",
     hard: "ခက်",
@@ -355,6 +364,8 @@ const TRANSLATIONS = {
     chatSend: "ပို့မည်",
     chatEmpty: "ဤ PDF သင်ခန်းစာအကြောင်း မေးခွန်းမေးပါ။",
     chatEmptyHint: 'ဥပမာ: "အဓိကအကြောင်းအရာက ဘာလဲ?", "အဓိကဖော်မြူလာရှင်းပြပါ"',
+    noResponseReceived: "ပြန်ကြားချက်မရရှိပါ။",
+    chatError: "တစ်ခုခုမှားယွင်းနေသည်။ ထပ်စမ်းကြည့်ပါ။",
 
     // Language output
     outputLanguage: "ထုတ်ယူမည့်ဘာသာစကား",
@@ -388,7 +399,8 @@ const TRANSLATIONS = {
     shareDocument: "စာရွက်မျှဝေမည်",
     noRooms: "စာလေ့လာခန်းမရှိသေးပါ",
     noRoomsHint: "ခန်းမဖန်တီးပါ သို့မဟုတ် ဖိတ်ကြားကုဒ်ဖြင့် ဝင်ပါ။",
-    noSharedDocs: "မျှဝေထားသောစာရွက်မရှိသေးပါ",
+    noSharedDocs: "စာရွက်မျှဝေထားခြင်းမရှိသေးပါ",
+    noDocsToShare: "မျှဝေရန် စာရွက်မရှိပါ။",
     roomInviteCode: "ဖိတ်ကြားကုဒ်",
     copyCode: "ကူးယူမည်",
     copied: "ကူးပြီးပါပြီ!",

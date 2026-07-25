@@ -1,7 +1,9 @@
-// confirm.js — Lightweight confirm dialog (promise-based, keyboard accessible)
+// confirm.js — Lightweight confirm + prompt dialogs (promise-based, keyboard accessible)
 // Usage: import { confirm } from './confirm.js'; const ok = await confirm('Log out?');
+//        import { promptDialog } from './confirm.js'; const val = await promptDialog('Enter name:', 'default');
 
 let activeResolve = null;
+let overlayEl = null;
 
 export function confirm(message) {
   return new Promise((resolve) => {
@@ -55,7 +57,60 @@ export function confirm(message) {
   });
 }
 
-let overlayEl = null;
+export function promptDialog(message, defaultValue = '') {
+  return new Promise((resolve) => {
+    if (activeResolve) {
+      activeResolve(null);
+      removeOverlay();
+    }
+    activeResolve = resolve;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', message);
+
+    overlay.innerHTML = `
+      <div class="confirm-card">
+        <p class="confirm-msg">${message}</p>
+        <div style="margin:0 0 20px">
+          <input type="text" id="prompt-input" class="form-input" value="${defaultValue.replace(/"/g,'&quot;')}" autofocus style="font-size:1rem" />
+        </div>
+        <div class="confirm-btns">
+          <button class="confirm-cancel btn btn-ghost btn-sm">Cancel</button>
+          <button class="confirm-ok btn btn-accent btn-sm">Save</button>
+        </div>
+      </div>
+    `;
+
+    const input = overlay.querySelector('#prompt-input');
+    const okBtn = overlay.querySelector('.confirm-ok');
+    const cancelBtn = overlay.querySelector('.confirm-cancel');
+
+    const cleanup = (result) => {
+      if (activeResolve === resolve) activeResolve = null;
+      resolve(result);
+      removeOverlay();
+    };
+
+    okBtn.addEventListener('click', () => cleanup(input.value));
+    cancelBtn.addEventListener('click', () => cleanup(null));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup(null);
+    });
+
+    document.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); cleanup(null); document.removeEventListener('keydown', onKey); }
+      if (e.key === 'Enter') { e.preventDefault(); cleanup(input.value); document.removeEventListener('keydown', onKey); }
+    });
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    input.focus();
+    input.select();
+  });
+}
 
 function removeOverlay() {
   if (!overlayEl) {

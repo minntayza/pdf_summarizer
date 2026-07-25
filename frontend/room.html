@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <script>
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Study Room</title>
-<link rel="stylesheet" href="css/style.css?v=4"/>
+<link rel="stylesheet" href="css/style.css?v=6"/>
 <script type="importmap">
-{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+{
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+      "react": "https://esm.sh/react@19",
+      "react-dom/client": "https://esm.sh/react-dom@19/client",
+      "pullcord": "https://esm.sh/pullcord@0.1.0?deps=react@19,motion@12",
+      "motion/react": "https://esm.sh/motion@12/react"
+    }
+  }
 </script>
+<script data-goatcounter="https://mintayza.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
 <div class="control-bar" id="control-bar-target"></div>
@@ -36,7 +46,7 @@
   <div id="room-content" style="display:none">
     <div class="room-header">
       <h2 id="room-name"></h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="flex-row flex-wrap gap-sm">
         <button class="btn btn-accent btn-sm" id="share-doc-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span data-i18n="shareDocument">Share Document</span>
@@ -51,7 +61,7 @@
     </div>
 
     <div class="room-invite-box">
-      <span style="font-size:.84rem;color:var(--muted)" data-i18n="roomInviteCode">Invite Code</span><span style="font-size:.84rem;color:var(--muted)">:</span>
+      <span class="text-sm text-muted" data-i18n="roomInviteCode">Invite Code</span><span class="text-sm text-muted">:</span>
       <span class="room-invite-code" id="invite-code"></span>
     </div>
 
@@ -64,7 +74,7 @@
     <div class="card" id="share-picker" style="display:none">
       <h3 data-i18n="selectDocument" style="margin-bottom:14px;font-family:var(--font-heading)">Select a document to share</h3>
       <div class="share-picker" id="share-picker-list"></div>
-      <div style="margin-top:14px;text-align:right">
+      <div class="mt-lg" style="text-align:right">
         <button class="btn btn-ghost btn-sm" id="cancel-share-btn">Cancel</button>
       </div>
     </div>
@@ -151,7 +161,7 @@ if (roomErr || !room) {
     container.innerHTML = '';
 
     if (docs.length === 0) {
-      container.innerHTML = `<div style="text-align:center;padding:32px;color:var(--muted)">${t('noSharedDocs')}</div>`;
+      container.innerHTML = `<div class="text-center p-lg mb-lg text-muted">${t('noSharedDocs')}</div>`;
       return;
     }
 
@@ -205,7 +215,7 @@ if (roomErr || !room) {
       pickerList.innerHTML = '';
 
       if (!myDocs || myDocs.length === 0) {
-        pickerList.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">No documents to share.</div>';
+        pickerList.innerHTML = '<div class="text-center p-lg text-muted">' + t('noDocsToShare') + '</div>';
         return;
       }
 
