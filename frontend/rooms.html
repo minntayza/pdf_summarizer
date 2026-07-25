@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <script>
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Study Rooms</title>
-<link rel="stylesheet" href="css/style.css?v=4"/>
+<link rel="stylesheet" href="css/style.css?v=6"/>
 <script type="importmap">
-{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+{
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+      "react": "https://esm.sh/react@19",
+      "react-dom/client": "https://esm.sh/react-dom@19/client",
+      "pullcord": "https://esm.sh/pullcord@0.1.0?deps=react@19,motion@12",
+      "motion/react": "https://esm.sh/motion@12/react"
+    }
+  }
 </script>
+<script data-goatcounter="https://mintayza.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
 <div class="control-bar" id="control-bar-target"></div>
@@ -32,7 +42,7 @@
     <p class="subtitle" data-i18n="roomsSubtitle">Collaborate and share study materials with your classmates.</p>
   </header>
 
-  <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap">
+  <div class="flex-row flex-wrap gap-md mb-2xl">
     <button class="btn btn-accent" id="create-room-btn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       <span data-i18n="createRoom">Create Room</span>
@@ -45,7 +55,7 @@
 
   <!-- Create room modal -->
   <div class="card" id="create-form" style="display:none">
-    <h3 data-i18n="createRoom" style="margin-bottom:14px;font-family:var(--font-heading)">Create Room</h3>
+    <h3 class="heading-font mb-md" data-i18n="createRoom">Create Room</h3>
     <div class="form-row-center">
       <div class="form-flex-1">
         <label class="provider-label" data-i18n="roomName">Room Name</label>
@@ -58,7 +68,7 @@
 
   <!-- Join room modal -->
   <div class="card" id="join-form" style="display:none">
-    <h3 data-i18n="joinRoom" style="margin-bottom:14px;font-family:var(--font-heading)">Join Room</h3>
+    <h3 class="heading-font mb-md" data-i18n="joinRoom">Join Room</h3>
     <div class="form-row-center">
       <div class="form-flex-1">
         <label class="provider-label" data-i18n="inviteCode">Invite Code</label>

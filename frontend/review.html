@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <script>
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Review</title>
-<link rel="stylesheet" href="css/style.css?v=4"/>
+<link rel="stylesheet" href="css/style.css?v=6"/>
 <script type="importmap">
-{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+{
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+      "react": "https://esm.sh/react@19",
+      "react-dom/client": "https://esm.sh/react-dom@19/client",
+      "pullcord": "https://esm.sh/pullcord@0.1.0?deps=react@19,motion@12",
+      "motion/react": "https://esm.sh/motion@12/react"
+    }
+  }
 </script>
+<script data-goatcounter="https://mintayza.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
 <div class="control-bar" id="control-bar-target"></div>
@@ -83,9 +93,9 @@ if (docErr || !doc || doc.status !== 'done') {
 
     if (dueReviews.length === 0) {
       reviewArea.innerHTML = `
-        <div class="card" style="text-align:center;padding:48px">
-          <h2 style="font-family:var(--font-heading);margin-bottom:12px">${t('noCardsDue')}</h2>
-          <p style="color:var(--muted);margin-bottom:20px">All flashcards are up to date. Come back later!</p>
+        <div class="card text-center p-lg">
+          <h2 class="heading-font mb-md">${t('noCardsDue')}</h2>
+          <p class="text-muted mb-lg">${t('allUpToDate')}</p>
           <a href="view.html?id=${docId}" class="btn btn-ghost">${t('flashcards')}</a>
         </div>
       `;
@@ -165,10 +175,10 @@ if (docErr || !doc || doc.status !== 'done') {
 
       function renderComplete() {
         reviewArea.innerHTML = `
-          <div class="card" style="text-align:center;padding:48px">
-            <h2 style="font-family:var(--font-heading);margin-bottom:12px;color:var(--success)">${t('reviewComplete')}</h2>
-            <p style="color:var(--muted);margin-bottom:20px">${t('cardsReviewed')}: ${reviewQueue.length}</p>
-            <div style="display:flex;gap:10px;justify-content:center">
+          <div class="card text-center p-lg">
+            <h2 class="heading-font mb-md text-success">${t('reviewComplete')}</h2>
+            <p class="text-muted mb-lg">${t('cardsReviewed')}: ${reviewQueue.length}</p>
+            <div class="flex-center gap-md">
               <a href="view.html?id=${docId}" class="btn btn-ghost">${t('flashcards')}</a>
               <a href="library.html" class="btn btn-accent">${t('backToLibrary')}</a>
             </div>

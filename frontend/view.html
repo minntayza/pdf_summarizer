@@ -3,16 +3,26 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <script>
   // Prevent flash of wrong theme — must run before first paint
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — View Document</title>
 <meta name="description" content="View AI-generated study notes, key points, and flashcards."/>
-<link rel="stylesheet" href="css/style.css?v=4"/>
+<link rel="stylesheet" href="css/style.css?v=6"/>
 <script type="importmap">
-{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+{
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+      "react": "https://esm.sh/react@19",
+      "react-dom/client": "https://esm.sh/react-dom@19/client",
+      "pullcord": "https://esm.sh/pullcord@0.1.0?deps=react@19,motion@12",
+      "motion/react": "https://esm.sh/motion@12/react"
+    }
+  }
 </script>
+<script data-goatcounter="https://mintayza.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
 <div class="control-bar" id="control-bar-target"></div>
@@ -192,7 +202,7 @@ function addViewDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz
     if (existing) existing.remove();
     const wrapper = document.createElement('div');
     wrapper.className = 'panel-download';
-    wrapper.innerHTML = '<button class="btn btn-ghost btn-xs dl-tab-btn">Download .md</button>';
+    wrapper.innerHTML = '<button class="btn btn-ghost btn-xs dl-tab-btn">' + t('downloadMd') + '</button>';
     wrapper.querySelector('.dl-tab-btn').addEventListener('click', () => {
       if (content) downloadBlob(content, baseName + suffix);
     });
@@ -204,7 +214,7 @@ function addViewDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz
   if (header && !header.querySelector('.dl-all-btn')) {
     const dlAll = document.createElement('button');
     dlAll.className = 'btn btn-ghost btn-sm dl-all-btn';
-    dlAll.textContent = 'Download All';
+    dlAll.textContent = t('downloadAll');
     dlAll.addEventListener('click', () => {
       if (rawSummary) { downloadBlob(rawSummary, baseName + '_summary.md'); }
       setTimeout(() => { if (rawKeyPoints) downloadBlob(rawKeyPoints, baseName + '_key_points.md'); }, 300);
@@ -236,9 +246,9 @@ async function initChat(docId) {
     removeTypingIndicator(container);
 
     if (error) {
-      appendMessage(container, 'assistant', 'Sorry, something went wrong. Please try again.');
+      appendMessage(container, 'assistant', t('chatError'));
     } else {
-      appendMessage(container, 'assistant', data?.response || 'No response received.');
+      appendMessage(container, 'assistant', data?.response || t('noResponseReceived'));
     }
 
     if (sendBtn) sendBtn.disabled = false;

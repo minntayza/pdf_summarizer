@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <script>
   (function(){try{var t=localStorage.getItem('theme');if(!t)t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 </script>
 <title>Smart PDF Summarizer — Subjects</title>
-<link rel="stylesheet" href="css/style.css?v=4"/>
+<link rel="stylesheet" href="css/style.css?v=6"/>
 <script type="importmap">
-{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+{
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+      "react": "https://esm.sh/react@19",
+      "react-dom/client": "https://esm.sh/react-dom@19/client",
+      "pullcord": "https://esm.sh/pullcord@0.1.0?deps=react@19,motion@12",
+      "motion/react": "https://esm.sh/motion@12/react"
+    }
+  }
 </script>
+<script data-goatcounter="https://mintayza.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
 <div class="control-bar" id="control-bar-target"></div>
@@ -33,7 +43,7 @@
   </header>
 
   <div class="card" id="add-subject-card">
-    <h3 data-i18n="newSubject" style="margin-bottom:14px;font-family:var(--font-heading)">New Subject</h3>
+    <h3 class="heading-font mb-md" data-i18n="newSubject">New Subject</h3>
     <div class="form-row">
       <div class="form-flex-1">
         <label class="provider-label" data-i18n="subjectName">Subject Name</label>
@@ -75,7 +85,7 @@ import { t } from './js/i18n.js';
 import { renderI18n } from './js/ui-init.js';
 import { esc } from './js/app.js';
 import { toast } from './js/toast.js';
-import { confirm } from './js/confirm.js';
+import { confirm, promptDialog } from './js/confirm.js';
 import { getSubjects, createSubject, updateSubject, deleteSubject } from './js/subjects.js';
 import { initPage } from './js/page-init.js';
 
@@ -129,7 +139,7 @@ async function loadSubjects() {
     const row = document.createElement('div');
     row.style.setProperty('--row-color', s.color);
     row.innerHTML = `
-      <span class="subject-dot" style="background:var(--row-color);width:14px;height:14px;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px var(--row-color)"></span>
+      <span class="subject-dot" style="background:var(--row-color);flex-shrink:0;box-shadow:0 0 8px var(--row-color)"></span>
       <span class="subject-name">${esc(s.name)}</span>
       <div class="subject-actions">
         <button class="btn btn-ghost btn-xs edit-btn">Edit</button>
@@ -147,7 +157,7 @@ async function loadSubjects() {
     });
 
     row.querySelector('.edit-btn').addEventListener('click', async () => {
-      const newName = prompt(t('subjectName') + ':', s.name);
+      const newName = await promptDialog(t('subjectName'), s.name);
       if (!newName || newName.trim() === s.name) return;
       const { error } = await updateSubject(s.id, newName.trim());
       if (error) return toast(t('subjectUpdateFail'), 'error');

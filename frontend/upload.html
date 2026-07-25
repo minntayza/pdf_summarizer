@@ -10,10 +10,19 @@
 <title>Smart PDF Summarizer — Upload</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml"/>
 <meta name="description" content="Upload a lecture PDF and get AI-generated study materials."/>
-<link rel="stylesheet" href="css/style.css?v=4"/>
+<link rel="stylesheet" href="css/style.css?v=6"/>
 <script type="importmap">
-{ "imports": { "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2" } }
+{
+    "imports": {
+      "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+      "react": "https://esm.sh/react@19",
+      "react-dom/client": "https://esm.sh/react-dom@19/client",
+      "pullcord": "https://esm.sh/pullcord@0.1.0?deps=react@19,motion@12",
+      "motion/react": "https://esm.sh/motion@12/react"
+    }
+  }
 </script>
+<script data-goatcounter="https://mintayza.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
 <div class="control-bar" id="control-bar-target"></div>
@@ -580,7 +589,7 @@ function addDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz, ba
     if (existing) existing.remove();
     const wrapper = document.createElement('div');
     wrapper.className = 'panel-download';
-    wrapper.innerHTML = '<button class="btn btn-ghost btn-xs dl-tab-btn">Download .md</button>';
+    wrapper.innerHTML = '<button class="btn btn-ghost btn-xs dl-tab-btn">' + t('downloadMd') + '</button>';
     wrapper.querySelector('.dl-tab-btn').addEventListener('click', () => {
       if (content) downloadBlob(content, baseName + suffix);
     });
@@ -592,7 +601,7 @@ function addDownloadButtons(rawSummary, rawKeyPoints, rawFlashcards, rawQuiz, ba
   if (resActions && !resActions.querySelector('.dl-all-btn')) {
     const dlAll = document.createElement('button');
     dlAll.className = 'btn btn-accent btn-sm dl-all-btn';
-    dlAll.textContent = 'Download All';
+    dlAll.textContent = t('downloadAll');
     dlAll.addEventListener('click', () => {
       if (rawSummary) { downloadBlob(rawSummary, baseName + '_summary.md'); }
       setTimeout(() => { if (rawKeyPoints) downloadBlob(rawKeyPoints, baseName + '_key_points.md'); }, 300);
@@ -627,9 +636,9 @@ async function initChat(docId) {
     removeTypingIndicator(container);
 
     if (error) {
-      appendMessage(container, 'assistant', 'Sorry, something went wrong. Please try again.');
+      appendMessage(container, 'assistant', t('chatError'));
     } else {
-      appendMessage(container, 'assistant', data?.response || 'No response received.');
+      appendMessage(container, 'assistant', data?.response || t('noResponseReceived'));
     }
 
     if (sendBtn) sendBtn.disabled = false;
